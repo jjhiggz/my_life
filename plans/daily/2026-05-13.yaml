@@ -1,0 +1,38 @@
+# Daily Plan - Wednesday, May 13, 2026
+date: 2026-05-13
+day: wednesday
+
+workout:
+  type: cardio + strength + mobility
+  focus: "Triathlon prep (bike) + wrist-friendly strength + hip mobility"
+
+  main:
+    - block: "Peloton power zone ride"
+      duration_min: 30
+      note: "Steady pacing — don't go too hard up front"
+
+    - block: "Strength (wrist-safe)"
+      exercises:
+        - exercise: "Goblet squats"
+          sets: 3
+          reps: 10
+          weight: "15 lb dumbbell"
+        - exercise: "Kettlebell deadlifts"
+          sets: 3
+          reps: 10
+          weight: "15 lb dumbbell"
+        - exercise: "Dead bugs"
+          sets: 3
+          reps: "10 each side"
+        - exercise: "Side planks"
+          sets: 3
+          duration: "30 sec each side"
+          note: "Swap to bird dogs if abs are toast from dead bugs"
+
+  cooldown:
+    - "5 min hip opener mobility flow"
+
+rationale: |
+  Bike works the triathlon goal without joint impact.
+  Strength block is all wrist-neutral (no push-ups, no pull-ups, no heavy grip).
+  Functional movements translate to lifting a baby later this year.

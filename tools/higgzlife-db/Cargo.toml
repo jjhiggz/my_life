@@ -1,0 +1,16 @@
+[package]
+name = "higgzlife-db"
+version = "0.1.0"
+edition = "2021"
+description = "Shared SQLite schema and migrations for higgzlife (Tauri app + MCP server)"
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+anyhow = "1"
+
+[dev-dependencies]
+tempfile = "3"
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+uuid = { version = "1", features = ["v4"] }
+chrono = "0.4"

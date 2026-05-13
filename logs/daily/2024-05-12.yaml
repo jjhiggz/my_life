@@ -1,0 +1,118 @@
+# Daily Log - Monday, May 12, 2024
+date: 2024-05-12
+day: monday
+
+workout:
+  completed: true
+  type: strength
+  focus: "Upper body + core"
+  duration_min: ~30
+  wrist_status: "Tender but managed"
+
+  exercises:
+    - name: "Warmup"
+      completed: true
+
+    - name: "Incline push-ups"
+      sets: 3
+      reps: [20, 20, 20]
+      notes: "Too easy - progress to floor or add pause next time"
+
+    - name: "Dumbbell rows"
+      sets: 3
+      reps: [20, 20, 20]
+      weight: "15lb dumbbell (couldn't find kettlebell)"
+      notes: "Light weight - increase next time"
+
+    - name: "Pull-ups"
+      sets: 2
+      reps: [1, 1]
+      notes: "Smart to not push it at 260lbs. Starting point."
+
+    - name: "Dead bugs"
+      sets: 3
+      completed: true
+
+    - name: "Forearm planks"
+      sets: 3
+      duration_sec: [45, 40, 35]
+      notes: "Hates planks but did them anyway"
+
+  cooldown:
+    completed: true
+
+meals:
+  - meal: breakfast
+    time: "08:00"
+    items:
+      - food: "Oatmeal (brown sugar packet)"
+        cal: 220
+        protein_g: 4
+      - food: "Banana"
+        cal: 105
+        protein_g: 1
+      - food: "Peanut butter (1 tbsp)"
+        cal: 95
+        protein_g: 4
+      - food: "Apple"
+        cal: 95
+        protein_g: 0
+    total_cal: 515
+    total_protein_g: 9
+
+  - meal: lunch
+    time: "12:00"
+    items:
+      - food: "Milk (1/2 cup)"
+        cal: 74
+        protein_g: 4
+      - food: "Collard greens (3 leaves)"
+        cal: 3
+        protein_g: 0
+      - food: "Carrots (2 medium)"
+        cal: 50
+        protein_g: 1
+      - food: "Onion (1 medium)"
+        cal: 44
+        protein_g: 1
+      - food: "Cheddar cheese (1 slice)"
+        cal: 114
+        protein_g: 7
+      - food: "Chicken sausage (1 link)"
+        cal: 140
+        protein_g: 12
+      - food: "Rice"
+        cal: 200
+        protein_g: 4
+    total_cal: 625
+    total_protein_g: 29
+
+daily_totals:
+  calories: 1140
+  protein_g: 38
+  water_oz: 0
+
+garden_quiz:
+  questions_asked: 4
+  topics:
+    - "Sweet alyssum and aphid control"
+    - "Basil struggling - starting method"
+    - "Lettuce timing - cool season crop, bolt risk"
+    - "Succession planting for fall harvest"
+  learned:
+    - "Overwinter meaning"
+    - "Lettuce bolts in heat - needs shade or wait for fall"
+
+tasks:
+  - task: "Call vet about tick prevention"
+    completed: false
+    status: "Still needs to be done"
+
+metrics:
+  energy_after: 8.5
+  issues: none
+
+notes: |
+  Good workout. Push-ups and rows too easy at current weight/reps -
+  increase difficulty next session. Pull-ups will improve as weight drops.
+  Planks are a weakness to keep working on.

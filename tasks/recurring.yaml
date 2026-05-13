@@ -1,0 +1,49 @@
+# Recurring Tasks
+# These happen on a schedule - Claude will include them in daily plans
+
+daily:
+  - task: "Morning workout"
+    days: [mon, tue, wed, thu, fri]  # 5 days/week
+    time: morning
+    duration_min: 45
+    related_goal: triathlon
+
+  - task: "Gardening quiz (5 questions)"
+    days: [mon, tue, wed, thu, fri, sat, sun]
+    notes: "Claude generates questions based on season and what you're growing"
+
+weekly:
+  - task: "Play guitar"
+    frequency: 2  # times per week
+    duration_min: 20
+    related_goal: guitar
+    preferred_days: [tue, thu, sat]  # suggestions, not strict
+
+  - task: "Weekly review"
+    day: sun
+    duration_min: 15
+    notes: "Review what got done, adjust goals, plan next week"
+
+  - task: "Meal prep or planning"
+    day: sun
+    duration_min: 30
+    notes: "Loose planning for the week"
+
+  - task: "Garden check-in"
+    frequency: 2
+    duration_min: 15
+    notes: "Water, check plants, note progress"
+
+monthly:
+  - task: "Weigh-in and progress photos"
+    day: 1  # first of month
+    related_goal: weight-loss
+
+  - task: "Goal review"
+    day: 1
+    notes: "Are goals still relevant? Adjust as needed"
+
+seasonal:
+  - task: "Garden planning for next season"
+    months: [2, 8]  # Feb and Aug
+    notes: "What to plant, order seeds"

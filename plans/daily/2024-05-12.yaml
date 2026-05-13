@@ -1,0 +1,90 @@
+# Daily Plan - Monday, May 12, 2024
+date: 2024-05-12
+day: monday
+energy_level: high
+adjustments: "Wrist still tender - modifying push movements"
+
+workout:
+  type: strength
+  focus: "Upper body + core"
+  duration_min: 40
+
+  warmup:
+    - "Arm circles, shoulder rolls (2 min)"
+    - "Cat-cow stretches (1 min)"
+    - "Band pull-aparts or arm swings (1 min)"
+
+  main:
+    - exercise: "Incline push-ups (hands on bench/stairs)"
+      sets: 3
+      reps: 10-12
+      note: "Keeps wrist neutral - stop if any pain"
+    - exercise: "Kettlebell rows"
+      sets: 3
+      reps: "10 each side"
+      note: "Use strap if grip bothers wrist"
+    - exercise: "Pull-ups or inverted rows"
+      sets: 3
+      reps: "max"
+    - exercise: "Dead bugs"
+      sets: 3
+      reps: "10 each side"
+    - exercise: "Plank (on fists or forearms)"
+      sets: 3
+      duration: "30-45 sec"
+      note: "Forearm plank if wrist is tender"
+
+  cooldown:
+    - "Chest stretch (30 sec each side)"
+    - "Lat stretch (30 sec each side)"
+    - "Child's pose (1 min)"
+    - "Gentle wrist circles"
+
+tasks:
+  priority:
+    - task: "Call vet - ask about tick prevention for dogs"
+      from: backlog
+      notes: "URGENT - you mentioned this is weighing on you"
+
+  normal:
+    - task: "Transplant tent seedlings"
+      notes: "Zucchini, eggplant, lettuce, sunflowers, sweet alyssum are ready"
+    - task: "Fold laundry"
+      from: backlog
+
+  if_time:
+    - task: "Research parenting classes"
+      from: backlog
+      notes: "Baby in October - start looking"
+
+garden:
+  seasonal_reminder: |
+    Mid-May in Virginia - you're past last frost. Time to:
+    - Get those warm-season seedlings outside (zucchini, eggplant)
+    - Plant sweet alyssum near collards for aphid control
+    - Check on struggling basil - may need better drainage
+
+  quiz_questions:
+    - q: "What's the purpose of 'hardening off' seedlings?"
+      a: "Gradually exposing indoor-grown plants to outdoor conditions over 7-10 days to prevent transplant shock"
+
+    - q: "Why is sweet alyssum a good companion plant for brassicas like collards?"
+      a: "It attracts beneficial insects (like hoverflies) that eat aphids, and its flowers provide habitat for predatory insects"
+
+    - q: "What does it mean when your compost pile is 'hot'?"
+      a: "Active decomposition is happening - beneficial microbes are breaking down material. Ideal temp is 130-160°F. Hot compost kills weed seeds and pathogens."
+
+    - q: "Why are root vegetables like carrots and radishes good for breaking up clay soil?"
+      a: "Their taproots physically penetrate and loosen compacted soil. When they decompose, they leave channels for water and air."
+
+    - q: "When transplanting eggplant outdoors, what soil temperature should you wait for?"
+      a: "At least 60°F, ideally 70°F+. Eggplant is a heat-lover and will stall in cold soil."
+
+meals:
+  suggestion: "High energy day - fuel the workout. Protein + complex carbs."
+  reminder: "You've got this handled - just keep protein at each meal."
+
+notes:
+  - "High energy + tender wrist = good day to push legs/cardio but ease up on grip work"
+  - "The vet call is the one thing that'll clear mental space today"
+  - "5 months until baby - you're building the habits now"

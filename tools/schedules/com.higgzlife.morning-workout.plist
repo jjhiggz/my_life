@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.higgzlife.morning-workout</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/jonhigger/Projects/higgzlife/tools/notify.sh</string>
+        <string>Time for your morning workout! 💪</string>
+        <string>Workout</string>
+        <string>high</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>7</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/higgzlife-workout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/higgzlife-workout.err</string>
+</dict>
+</plist>

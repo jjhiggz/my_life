@@ -1,0 +1,69 @@
+# Diet Guidance
+# Approach: Loose guidance, not strict tracking
+# Goal: Support fat loss while maintaining energy for workouts
+
+approach: loose-guidance
+
+# Rough calorie targets (not strict, just ballpark)
+targets:
+  daily_calories: 2000-2200  # moderate deficit for fat loss at 260lbs
+  protein_min_g: 150         # ~0.6g per lb bodyweight, supports muscle retention
+
+# Meal structure (rough)
+meal_targets:
+  breakfast: 400-500
+  lunch: 500-700
+  dinner: 600-800
+  snacks: 200-400
+
+principles:
+  - "Eat mostly whole foods"
+  - "Protein at every meal"
+  - "Vegetables with lunch and dinner"
+  - "Don't drink your calories (limit soda, juice, alcohol)"
+  - "Eat slowly, stop at 80% full"
+  - "It's fine to indulge occasionally - sustainability > perfection"
+
+rough_targets:
+  protein: "Aim for palm-sized portion at each meal"
+  vegetables: "Half your plate at lunch/dinner"
+  carbs: "Moderate - fist-sized portions"
+  fats: "Include healthy fats, don't fear them"
+
+meal_ideas:
+  breakfast:
+    - "Eggs + veggies + toast"
+    - "Oatmeal + protein powder + banana"
+    - "Greek yogurt + fruit + nuts"
+    - "Smoothie with protein"
+  lunch:
+    - "Big salad with protein (chicken, fish, eggs)"
+    - "Leftovers from dinner"
+    - "Sandwich on whole grain + fruit"
+    - "Soup + protein"
+  dinner:
+    - "Protein + roasted veggies + grain"
+    - "Stir fry"
+    - "Tacos with lean meat + lots of veg"
+    - "Sheet pan meals"
+  snacks:
+    - "Fruit + nuts"
+    - "Greek yogurt"
+    - "Veggies + hummus"
+    - "Hard boiled eggs"
+    - "Protein bar (in a pinch)"
+
+hydration:
+  target: "Half your bodyweight in oz (~130 oz / 1 gallon)"
+  notes: "More on workout days"
+
+things_to_limit:
+  - "Sugary drinks"
+  - "Processed snacks"
+  - "Excessive alcohol"
+  - "Late night eating"
+
+flexibility:
+  - "One or two 'free' meals per week is fine"
+  - "Social events - enjoy yourself, get back on track next meal"
+  - "Progress > perfection"

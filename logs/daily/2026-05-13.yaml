@@ -1,0 +1,21 @@
+# Daily Log - Wednesday, May 13, 2026
+date: 2026-05-13
+day: wednesday
+
+meals:
+  - meal: breakfast
+    items:
+      - food: "Walnuts (20g)"
+        cal: 131
+        protein_g: 3
+      - food: "Banana"
+        cal: 105
+        protein_g: 1
+      - food: "Oatmeal pack (maple brown sugar)"
+        cal: 220
+        protein_g: 5
+
+daily_totals:
+  calories: 456
+  protein_g: 9
+  water_oz: 0

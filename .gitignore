@@ -1,0 +1,36 @@
+# OS
+.DS_Store
+
+# Editor
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Node
+node_modules/
+dist/
+
+# Rust
+target/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Logs
+*.log
+
+# Local Claude settings (permissions, etc.)
+.claude/settings.local.json
+
+# Third-party tool with its own git repo
+tools/mcp-scheduler/
+
+# Keep example files, ignore actual daily plans/logs until you're ready to commit
+# Uncomment these if you want to keep daily logs private:
+# plans/daily/*.yaml
+# !plans/daily/.example-plan.yaml
+# logs/daily/*.yaml
+# !logs/daily/.example-log.yaml

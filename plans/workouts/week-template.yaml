@@ -1,0 +1,127 @@
+# Weekly Workout Template
+# Customized for: Triathlon prep, injury prevention, mobility focus
+# Phase: Foundation (easing in, building base)
+
+phase: foundation
+focus:
+  - "Build aerobic base (biking, swimming)"
+  - "Functional strength (bodyweight, kettlebell)"
+  - "Mobility and flexibility"
+  - "Protect wrist (modify as needed)"
+  - "No running until weight drops"
+
+weekly_structure:
+  monday:
+    type: strength
+    focus: "Upper body + core"
+    duration_min: 40
+    components:
+      warmup:
+        - "Arm circles, shoulder rolls"
+        - "Cat-cow stretches"
+        - "Band pull-aparts (if available)"
+      main:
+        - exercise: "Push-ups (or incline if wrist bothers)"
+          sets: 3
+          reps: "8-12"
+        - exercise: "Kettlebell rows"
+          sets: 3
+          reps: "10 each side"
+        - exercise: "Pull-ups or inverted rows"
+          sets: 3
+          reps: "max or 8-10"
+        - exercise: "Dead bugs"
+          sets: 3
+          reps: "10 each side"
+        - exercise: "Plank"
+          sets: 3
+          duration: "30-45 sec"
+      cooldown:
+        - "Chest stretch"
+        - "Lat stretch"
+        - "Child's pose"
+
+  tuesday:
+    type: cardio
+    focus: "Biking - easy aerobic"
+    duration_min: 30
+    notes: "Zone 2 effort - conversational pace"
+    alternatives:
+      - "YouTube low-impact cardio video"
+
+  wednesday:
+    type: strength
+    focus: "Lower body + mobility"
+    duration_min: 45
+    components:
+      warmup:
+        - "Hip circles"
+        - "Leg swings"
+        - "Bodyweight squats"
+      main:
+        - exercise: "Goblet squats (kettlebell)"
+          sets: 3
+          reps: "10-12"
+        - exercise: "Romanian deadlifts (kettlebell)"
+          sets: 3
+          reps: "10"
+        - exercise: "Lunges"
+          sets: 3
+          reps: "8 each leg"
+        - exercise: "Glute bridges"
+          sets: 3
+          reps: "15"
+        - exercise: "Calf raises"
+          sets: 3
+          reps: "15"
+      cooldown:
+        - "Pigeon pose"
+        - "Hip flexor stretch"
+        - "Hamstring stretch"
+
+  thursday:
+    type: cardio
+    focus: "Biking or swimming"
+    duration_min: 30
+    notes: "Alternate between bike and pool"
+    swim_workout:
+      - "200m easy warmup"
+      - "4x50m with 20 sec rest"
+      - "200m easy cooldown"
+
+  friday:
+    type: yoga_mobility
+    focus: "Full body mobility + recovery"
+    duration_min: 30
+    notes: "YouTube yoga video - pick based on how you feel"
+    suggestions:
+      - "Yoga with Adriene"
+      - "Tom Merrick mobility routines"
+
+  saturday:
+    type: active_recovery
+    focus: "Easy movement or longer bike"
+    duration_min: 30-60
+    options:
+      - "Easy bike ride outdoors"
+      - "Walk"
+      - "Light yoga"
+      - "Gardening counts!"
+
+  sunday:
+    type: rest
+    notes: "Full rest or very light stretching"
+
+modifications:
+  wrist:
+    - "Incline push-ups instead of floor"
+    - "Fist push-ups to neutral wrist"
+    - "Avoid heavy gripping - use straps if needed"
+    - "Skip any exercise that causes pain"
+
+progression:
+  when_ready:
+    - "Add reps before adding sets"
+    - "Increase bike duration by 5 min/week"
+    - "Add swim distance gradually"
+    - "Introduce running when under 230lbs"

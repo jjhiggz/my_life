@@ -1,0 +1,43 @@
+# Skills Tracking
+# Track proficiency and practice for skills you're developing
+
+guitar:
+  proficiency: intermediate
+  goal: maintain
+  practice_target_per_week: 2
+  last_practiced: null
+  notes: "Already decent, just need consistency"
+  focus_areas: []  # Add specific techniques or songs if desired
+
+gardening:
+  proficiency: beginner
+  goal: learn
+  zone: "7a"
+  location: "Virginia"
+
+  knowledge_areas:
+    - topic: "Seed starting timing"
+      confidence: low
+      notes: "When to start indoors vs direct sow"
+    - topic: "Hardening off"
+      confidence: low
+    - topic: "Companion planting"
+      confidence: low
+    - topic: "Pest identification"
+      confidence: low
+    - topic: "Watering needs"
+      confidence: medium
+    - topic: "Soil health"
+      confidence: low
+
+  quiz_config:
+    questions_per_day: 5
+    focus_on_weak_areas: true
+    include_seasonal: true  # Questions relevant to current month
+
+parenting:
+  proficiency: beginner
+  goal: learn
+  start_date: 2024-10  # When baby arrives
+  resources: []  # Add books, classes as you find them
+  notes: "First child"

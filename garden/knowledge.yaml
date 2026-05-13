@@ -1,0 +1,68 @@
+# Gardening Knowledge Base
+# Used for generating quizzes and tracking what you've learned
+# Claude will quiz you and update confidence levels
+
+zone_7_virginia:
+  spring_tasks:
+    - month: 2
+      tasks:
+        - "Order seeds"
+        - "Plan garden layout"
+        - "Start slow-growing seeds indoors (peppers, onions)"
+    - month: 3
+      tasks:
+        - "Start tomatoes indoors (6-8 weeks before last frost)"
+        - "Prune fruit trees before buds break"
+        - "Prepare beds, amend soil"
+    - month: 4
+      tasks:
+        - "Harden off seedlings"
+        - "Direct sow cool-season crops (lettuce, peas, spinach)"
+        - "Watch for late frost"
+    - month: 5
+      tasks:
+        - "Transplant warm-season crops after last frost (~May 15)"
+        - "Mulch beds"
+        - "Set up irrigation if needed"
+
+  seed_starting_indoors:
+    # Weeks before last frost (April 15 for Zone 7a VA)
+    tomatoes: 6-8
+    peppers: 8-10
+    eggplant: 8-10
+    broccoli: 6-8
+    cabbage: 6-8
+    basil: 4-6
+    cucumbers: 3-4
+    squash: 3-4
+    melons: 3-4
+
+  direct_sow:
+    cool_season:
+      - crop: lettuce
+        when: "March-April, Sept-Oct"
+      - crop: peas
+        when: "March"
+      - crop: spinach
+        when: "March, September"
+      - crop: radishes
+        when: "March-April, September"
+    warm_season:
+      - crop: beans
+        when: "After last frost (May)"
+      - crop: corn
+        when: "After soil warms (May)"
+      - crop: zucchini
+        when: "After last frost (May)"
+
+quiz_history:
+  # Claude will track questions asked and whether you got them right
+  # Format:
+  # - date: 2024-03-15
+  #   question: "When should you start tomato seeds indoors in Zone 7?"
+  #   correct: true
+  []
+
+weak_areas:
+  # Topics to focus on based on quiz performance
+  []

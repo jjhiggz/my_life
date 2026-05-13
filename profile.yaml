@@ -1,0 +1,60 @@
+# Personal Profile - The context Claude needs to help you
+# Last updated: 2024-03-15
+
+personal:
+  location: Virginia
+  usda_zone: "7a"  # Adjust if you know your specific zone
+
+  life_events:
+    - event: "Baby arriving"
+      date: 2024-10
+      notes: "First child - need to prep and build sustainable habits before"
+
+work:
+  type: full-time-remote
+  schedule: flexible
+
+physical:
+  current_weight_lbs: 260
+  injuries:
+    - area: wrist
+      status: nearly-recovered
+      avoid: ["heavy gripping", "wrist extension under load"]
+  limitations:
+    - "No running until weight drops (joint protection)"
+
+fitness:
+  equipment:
+    - weights
+    - kettlebell
+    - pull-up bar
+    - bike (outdoor or stationary)
+  resources:
+    - "YouTube for yoga/bodyweight videos"
+  preferences:
+    - "Morning workouts"
+    - "Mobility-focused"
+    - "Slow progression, injury prevention priority"
+    - "Well-functioning back and body over raw strength"
+  swimming_level: comfortable
+
+goals_summary:
+  fitness:
+    - "Complete a triathlon in ~1 year"
+    - "Lose weight sustainably"
+    - "Build functional strength"
+    - "Improve endurance via biking/swimming first, running later"
+  life:
+    - "Prepare for fatherhood"
+    - "Work-life balance"
+    - "Side project/business"
+  skills:
+    - "Guitar - maintain skills, play 2x/week"
+    - "Gardening - learn seasonal timing, plant care"
+
+diet:
+  approach: loose-guidance
+  notes: "General tips, not strict tracking"
+
+workout_days_per_week: 5
+preferred_time: morning

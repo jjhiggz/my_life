@@ -1,0 +1,15 @@
+# Daily Log - Monday, May 12, 2026
+date: 2026-05-12
+day: monday
+
+meals:
+  - meal: snack
+    items:
+      - food: "Apple"
+        cal: 95
+        protein_g: 0
+
+daily_totals:
+  calories: 95
+  protein_g: 0
+  water_oz: 0

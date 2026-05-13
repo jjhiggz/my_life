@@ -1,0 +1,53 @@
+# Example Daily Plan
+# Claude generates one of these each day based on your goals, backlog, and schedule
+# File naming: YYYY-MM-DD.yaml
+
+date: 2024-03-15
+day: friday
+
+workout:
+  type: yoga_mobility
+  duration_min: 30
+  details: "Full body mobility + recovery"
+  video_suggestion: "Yoga with Adriene - 30 min full body"
+  wrist_notes: "Should be fine for most yoga - modify planks if needed"
+
+tasks:
+  priority:
+    - task: "Call vet"
+      from: backlog
+      notes: "Marked as urgent"
+
+  normal:
+    - task: "Fold laundry"
+      from: backlog
+    - task: "Play guitar (20 min)"
+      from: recurring
+
+  if_time:
+    - task: "Research parenting classes"
+      from: backlog
+      notes: "First step before signing up"
+
+garden:
+  quiz_questions:
+    - q: "When should you start tomato seeds indoors in Zone 7 Virginia?"
+      a: "6-8 weeks before last frost (mid-February to early March)"
+    - q: "What does 'hardening off' mean?"
+      a: "Gradually exposing indoor seedlings to outdoor conditions over 7-10 days"
+    - q: "Name one cool-season crop you can direct sow in March"
+      a: "Lettuce, peas, spinach, or radishes"
+    - q: "What's the approximate last frost date for Zone 7a Virginia?"
+      a: "Around April 15"
+    - q: "Why shouldn't you transplant tomatoes outside until after last frost?"
+      a: "Tomatoes are frost-sensitive and will die or be stunted by cold"
+
+  seasonal_reminder: "March in VA: Start tomatoes indoors if you haven't! Time to prep beds."
+
+meals:
+  suggestion: "It's Friday - if you want a 'free meal' tonight, go for it"
+  reminder: "Protein at every meal"
+
+notes:
+  - "Baby arrives in ~7 months - you're building habits now that will carry you through"
+  - "Wrist is almost healed - still modify if anything hurts"

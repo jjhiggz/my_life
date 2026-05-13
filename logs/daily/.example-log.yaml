@@ -1,0 +1,62 @@
+# Example Daily Log
+# Fill this out at the end of each day (or as you go)
+# File naming: YYYY-MM-DD.yaml
+
+date: 2024-03-15
+day: friday
+
+workout:
+  completed: true
+  type: yoga_mobility
+  duration_min: 25
+  video_used: "Yoga with Adriene - Morning Yoga"
+  notes: "Felt tight in hips, spent extra time there"
+  wrist_status: "No pain"
+
+tasks:
+  - task: "Call vet"
+    completed: true
+    notes: "Appointment scheduled for Monday"
+
+  - task: "Fold laundry"
+    completed: true
+
+  - task: "Play guitar"
+    completed: true
+    duration_min: 15
+    notes: "Played some old favorites"
+
+  - task: "Research parenting classes"
+    completed: false
+    reason: "Ran out of time"
+
+garden:
+  quiz_score: 4/5
+  missed: "Hardening off definition - need to review"
+  time_in_garden_min: 0
+  notes: ""
+
+meals:
+  breakfast: "Oatmeal + protein + banana"
+  lunch: "Leftover chicken + salad"
+  dinner: "Pizza (free meal)"
+  snacks: "Apple, nuts"
+  water_oz: 100
+  notes: "Felt good about eating today"
+
+metrics:
+  mood: 7          # 1-10
+  energy: 6        # 1-10
+  sleep_hours: 7
+  sleep_quality: 7 # 1-10
+
+reflections: |
+  Good day overall. Got the vet call done which was weighing on me.
+  Yoga felt great - should do more hip work.
+
+wins:
+  - "Called the vet finally"
+  - "Hit my workout"
+
+tomorrow:
+  - "Start researching parenting classes"

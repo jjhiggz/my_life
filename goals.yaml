@@ -1,0 +1,66 @@
+# Active Goals
+# These guide Claude's daily planning and task prioritization
+
+active:
+  - id: triathlon
+    goal: "Complete a triathlon"
+    target_date: 2025-05
+    category: fitness
+    current_status: "Starting out - focusing on biking and swimming while weight drops"
+    milestones:
+      - "Bike 10 miles comfortably ✓"
+      - "Swim 500m without stopping"
+      - "Drop to 230lbs (safe to start running)"
+      - "Run 1 mile"
+      - "Complete sprint tri distance in training"
+
+  - id: weight-loss
+    goal: "Lose weight sustainably"
+    target: "Under 200lbs"
+    category: fitness
+    current_status: "Starting at 260lbs"
+    approach: "Caloric deficit + strength training + cardio"
+
+  - id: dad-prep
+    goal: "Prepare for fatherhood"
+    target_date: 2024-10
+    category: life
+    current_status: "Baby coming in October"
+    tasks:
+      - "Sign up for parenting class"
+      - "Read parenting books"
+      - "Set up nursery"
+      - "Build sustainable routines before baby arrives"
+
+  - id: guitar
+    goal: "Maintain guitar skills"
+    category: skills
+    target: "Play 2x per week"
+    current_status: "Already decent, just need consistency"
+
+  - id: gardening
+    goal: "Learn seasonal gardening for Virginia Zone 7"
+    category: skills
+    current_status: "Growing veggies, herbs, flowers"
+    approach: "Daily quizzes, plant tracking, seasonal reminders"
+
+  - id: side-project
+    goal: "Build side project/business"
+    category: career
+    current_status: "Idea phase"
+    notes: "Define this more when ready"
+
+priorities:
+  # Order matters - Claude will weight these when planning your day
+  - health        # Fitness, diet, sleep
+  - dad-prep      # Time-sensitive
+  - work-life-balance
+  - gardening     # Seasonal, can't delay
+  - guitar
+  - side-project
+
+constraints:
+  - "Protect wrist (nearly healed but be careful)"
+  - "No running until weight is lower"
+  - "Morning workouts preferred"
+  - "Baby arrives October - build habits before then"

@@ -1,0 +1,49 @@
+# Task Backlog
+# Claude will pull from this when planning your day
+# Add tasks here as they come up
+
+errands:
+  - id: car-fix
+    task: "Get car fixed"
+    priority: medium
+    status: pending
+    notes: ""
+
+  - id: parenting-class
+    task: "Sign up for a parenting class"
+    priority: high
+    status: pending
+    related_goal: dad-prep
+    notes: "Research options first"
+
+  - id: call-vet
+    task: "Call vet"
+    priority: urgent
+    status: pending
+    notes: "Important - do this soon"
+
+  - id: fold-laundry
+    task: "Fold laundry"
+    priority: low
+    status: pending
+    notes: ""
+
+home:
+  - id: clean-garage
+    task: "Clean garage"
+    priority: medium
+    status: pending
+    estimated_chunks: 3  # Can be broken into multiple sessions
+    notes: ""
+
+garden:
+  - id: kill-invasives
+    task: "Kill some invasive plants"
+    priority: medium
+    status: pending
+    notes: "Identify which plants and best removal method"
+
+# Add more as needed:
+# shopping: []
+# projects: []
+# calls: []

@@ -1,0 +1,11 @@
+[mcp_servers.higgzlife]
+command = "/Users/jonhigger/Projects/higgzlife/tools/mcp-server/target/release/higgzlife-mcp"
+
+[mcp_servers.sentry-spotlight]
+args = [
+    "-y",
+    "--prefer-online",
+    "@spotlightjs/spotlight@latest",
+    "mcp",
+]
+command = "npx"

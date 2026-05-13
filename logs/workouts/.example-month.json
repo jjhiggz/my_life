@@ -1,0 +1,30 @@
+[
+  {
+    "date": "2024-03-15",
+    "type": "yoga_mobility",
+    "duration_min": 25,
+    "exercises": [],
+    "notes": "Yoga with Adriene morning flow"
+  },
+  {
+    "date": "2024-03-14",
+    "type": "cardio",
+    "subtype": "biking",
+    "duration_min": 35,
+    "distance_miles": 8,
+    "notes": "Easy zone 2 ride"
+  },
+  {
+    "date": "2024-03-13",
+    "type": "strength",
+    "focus": "lower_body",
+    "duration_min": 40,
+    "exercises": [
+      {"name": "goblet_squats", "sets": 3, "reps": [12, 12, 10], "weight_lbs": 35},
+      {"name": "rdl", "sets": 3, "reps": [10, 10, 10], "weight_lbs": 35},
+      {"name": "lunges", "sets": 3, "reps": [8, 8, 8], "weight_lbs": 0},
+      {"name": "glute_bridges", "sets": 3, "reps": [15, 15, 15], "weight_lbs": 0}
+    ],
+    "notes": "Legs felt strong"
+  }
+]

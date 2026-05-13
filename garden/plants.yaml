@@ -1,0 +1,172 @@
+# Garden Plant Tracking
+# First-year garden in Virginia Zone 7a
+# Goal: Work with native clay soil, build it up over time
+
+zone: "7a"
+location: "Virginia"
+soil_type: "Clay (working to improve)"
+year: 1  # First year gardening
+
+# Current season reference (Virginia Zone 7):
+# Last frost: ~April 15
+# First frost: ~October 15
+# Growing season: ~180 days
+
+beds:
+  - name: "Porch Area"
+    location: "Next to porch"
+    plants:
+      - name: "Grapes"
+        status: growing
+        notes: "Trimmed and groomed"
+      - name: "Sunflowers"
+        status: flowering
+        notes: "Some already flowered"
+      - name: "Sunflowers (seedlings)"
+        status: struggling
+        notes: "Stuck as seedlings for ~1 month - not progressing"
+        issue: true
+
+  - name: "Bucket"
+    location: "Container"
+    plants:
+      - name: "Collard greens"
+        status: growing
+
+  - name: "Hill Row - Expansion Zone"
+    location: "Bottom of hill, left side"
+    notes: "Dug hole, covered neighboring grass with cardboard to kill it"
+    status: prep
+    plants: []
+
+  - name: "Hill Row - Collards"
+    location: "Bottom of hill, middle-left"
+    plants:
+      - name: "Collard greens"
+        quantity: 2
+        status: growing
+
+  - name: "Raised Bed"
+    location: "Bottom of hill, middle"
+    plants:
+      - name: "Tomatoes"
+        status: growing
+        health: good
+        notes: "Looking really good"
+      - name: "Garlic"
+        status: growing
+      - name: "Onions"
+        status: growing
+        notes: "Replanted"
+      - name: "Flowers"
+        status: growing
+        notes: "Mixed flowers"
+      - name: "Basil"
+        status: struggling
+        health: poor
+        notes: "Not looking great, might improve"
+        issue: true
+      - name: "Parsley"
+        status: struggling
+        health: poor
+        notes: "Not looking great, might improve"
+        issue: true
+
+  - name: "Tilling Bed"
+    location: "Separate area"
+    purpose: "Break up clay soil with root vegetables"
+    soil: "Native clay - working to improve"
+    plants:
+      - name: "Carrots"
+        status: growing
+        health: good
+      - name: "Radishes"
+        status: growing
+        health: good
+      - name: "Brussels sprouts"
+        status: growing
+        health: good
+      - name: "Beets"
+        status: growing
+        health: good
+    notes: "Goal is soil improvement. Growing well so far."
+
+indoor_growing:
+  location: "Garage tent"
+  setup: "Grow tent with lights"
+  plants:
+    - name: "Blackberries"
+      status: seedling
+      health: "barely seedlings"
+      destination: "Transplant outside when ready"
+
+    - name: "Raspberries"
+      status: seedling
+      health: "barely seedlings"
+      destination: "Transplant outside when ready"
+
+    - name: "Zucchini"
+      status: seedling
+      health: good
+      destination: "Transplant after last frost risk"
+
+    - name: "Eggplant"
+      status: seedling
+      health: good
+      destination: "Transplant after soil warms (likes heat)"
+
+    - name: "Lettuce"
+      status: seedling
+      destination: "Can go out soon - cool season crop"
+
+    - name: "Sunflowers"
+      status: seedling
+      notes: "Backup batch to replace failed direct-sown ones"
+      destination: "Transplant outside"
+
+    - name: "Sweet alyssum"
+      status: seedling
+      purpose: "Companion plant - attracts beneficial insects, deters aphids"
+      destination: "Plant near collards"
+
+composting:
+  method: "Tumbler"
+  inputs:
+    - "Grass clippings (green)"
+    - "Cardboard (brown)"
+    - "Fruit scraps (green)"
+  status: active
+  temperature: hot
+  notes: "Hot every day - good sign. First time composting."
+
+issues_to_watch:
+  - location: "Porch Area"
+    plant: "Sunflower seedlings (direct sown)"
+    issue: "Stuck for a month, not growing"
+    action: "Write off - replace with tent-grown seedlings"
+    notes: "Sown in garden soil with mulch bits. Not worth saving."
+
+  - location: "Raised Bed"
+    plant: "Basil"
+    issue: "Not thriving"
+    possible_causes:
+      - "Too much water"
+      - "Not enough sun"
+      - "Soil too heavy/clay"
+      - "Planted too early (basil likes heat)"
+
+  - location: "Raised Bed"
+    plant: "Parsley"
+    issue: "Not thriving"
+    possible_causes:
+      - "Parsley is slow to establish"
+      - "May just need time"
+      - "Check drainage"
+
+first_year_notes: |
+  Working with native clay soil. Goal is to improve over time using:
+  - Root vegetables to break up clay
+  - Compost additions
+  - Cardboard mulching to suppress grass and add organic matter
+
+  This is a learning year - experimenting and seeing what works.
