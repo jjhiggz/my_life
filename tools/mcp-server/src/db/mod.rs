@@ -72,6 +72,7 @@ mod tests {
             )?;
             assert!(count > 0);
             Ok(())
-        }).unwrap();
+        })
+        .unwrap();
     }
 }

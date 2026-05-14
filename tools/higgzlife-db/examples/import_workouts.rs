@@ -93,8 +93,8 @@ fn main() -> Result<()> {
         if stem.starts_with('.') {
             continue; // .example-log etc.
         }
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("reading {}", path.display()))?;
+        let content =
+            fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
         let doc: DailyLog = match serde_yaml::from_str(&content) {
             Ok(d) => d,
             Err(e) => {
@@ -143,12 +143,7 @@ fn import_workout(
     tx.execute(
         "INSERT INTO activities (id, activity_type, created_at, updated_at, status, title, notes)
          VALUES (?1, 'workout', ?2, ?2, 'done', ?3, ?4)",
-        params![
-            &activity_id,
-            &created_at,
-            &w.focus,
-            &w.notes,
-        ],
+        params![&activity_id, &created_at, &w.focus, &w.notes,],
     )?;
 
     let kind = classify_workout_kind(w);
@@ -367,11 +362,7 @@ fn insert_timed_sets(
     Ok(durations.len())
 }
 
-fn insert_empty_sets(
-    tx: &rusqlite::Transaction,
-    exercise_id: &str,
-    n: usize,
-) -> Result<usize> {
+fn insert_empty_sets(tx: &rusqlite::Transaction, exercise_id: &str, n: usize) -> Result<usize> {
     for i in 0..n {
         let id = uuid::Uuid::new_v4().to_string();
         tx.execute(

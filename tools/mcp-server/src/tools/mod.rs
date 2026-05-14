@@ -4,8 +4,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::db::Database;
 use crate::db::queries;
+use crate::db::Database;
 use crate::models::*;
 
 /// The HiggzLife MCP server tools
@@ -25,8 +25,8 @@ impl HiggzLife {
 
     /// Log a meal with food items
     pub fn log_meal(&self, params: LogMealParams) -> Result<Uuid> {
-        let activity = Activity::new(ActivityType::Meal)
-            .with_notes(params.notes.unwrap_or_default());
+        let activity =
+            Activity::new(ActivityType::Meal).with_notes(params.notes.unwrap_or_default());
 
         let mut meal = Meal {
             activity_id: activity.id,
@@ -36,8 +36,10 @@ impl HiggzLife {
             total_carbs_g: None,
             total_fat_g: None,
             total_fiber_g: None,
-            items: params.items.into_iter().map(|i| {
-                MealItem {
+            items: params
+                .items
+                .into_iter()
+                .map(|i| MealItem {
                     id: Uuid::new_v4(),
                     meal_id: activity.id,
                     food_name: i.food_name,
@@ -51,8 +53,8 @@ impl HiggzLife {
                     food_id: None,
                     serving_id: None,
                     quantity: None,
-                }
-            }).collect(),
+                })
+                .collect(),
         };
 
         meal.calculate_totals();
@@ -67,9 +69,8 @@ impl HiggzLife {
     /// Get today's nutrition summary
     pub fn get_today_nutrition(&self) -> Result<DailyNutrition> {
         let today = Local::now().date_naive();
-        self.db.with_conn(|conn| {
-            queries::get_daily_nutrition(conn, today)
-        })
+        self.db
+            .with_conn(|conn| queries::get_daily_nutrition(conn, today))
     }
 
     // ========================================================================
@@ -89,29 +90,37 @@ impl HiggzLife {
             energy_before: params.energy_before,
             energy_after: params.energy_after,
             location: params.location,
-            exercises: params.exercises.into_iter().enumerate().map(|(i, e)| {
-                let exercise_id = Uuid::new_v4();
-                Exercise {
-                    id: exercise_id,
-                    workout_id: activity.id,
-                    exercise_name: e.exercise_name,
-                    exercise_order: i as i32,
-                    notes: e.notes,
-                    sets: e.sets.into_iter().enumerate().map(|(j, s)| {
-                        ExerciseSet {
-                            id: Uuid::new_v4(),
-                            exercise_id,
-                            set_number: j as i32 + 1,
-                            reps: s.reps,
-                            weight_lbs: s.weight_lbs,
-                            duration_sec: s.duration_sec,
-                            rest_after_sec: None,
-                            rpe: None,
-                            notes: None,
-                        }
-                    }).collect(),
-                }
-            }).collect(),
+            exercises: params
+                .exercises
+                .into_iter()
+                .enumerate()
+                .map(|(i, e)| {
+                    let exercise_id = Uuid::new_v4();
+                    Exercise {
+                        id: exercise_id,
+                        workout_id: activity.id,
+                        exercise_name: e.exercise_name,
+                        exercise_order: i as i32,
+                        notes: e.notes,
+                        sets: e
+                            .sets
+                            .into_iter()
+                            .enumerate()
+                            .map(|(j, s)| ExerciseSet {
+                                id: Uuid::new_v4(),
+                                exercise_id,
+                                set_number: j as i32 + 1,
+                                reps: s.reps,
+                                weight_lbs: s.weight_lbs,
+                                duration_sec: s.duration_sec,
+                                rest_after_sec: None,
+                                rpe: None,
+                                notes: None,
+                            })
+                            .collect(),
+                    }
+                })
+                .collect(),
         };
 
         self.db.with_conn(|conn| {
@@ -136,7 +145,8 @@ impl HiggzLife {
         let task = Task {
             activity_id: activity.id,
             priority: params.priority.unwrap_or(TaskPriority::Medium),
-            due_date: params.due_date
+            due_date: params
+                .due_date
                 .and_then(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok()),
             completed_at: None,
             category: params.category,
@@ -152,16 +162,13 @@ impl HiggzLife {
 
     /// List pending tasks
     pub fn list_tasks(&self) -> Result<Vec<TaskWithActivity>> {
-        self.db.with_conn(|conn| {
-            queries::list_pending_tasks(conn)
-        })
+        self.db.with_conn(|conn| queries::list_pending_tasks(conn))
     }
 
     /// Complete a task
     pub fn complete_task(&self, task_id: Uuid) -> Result<()> {
-        self.db.with_conn(|conn| {
-            queries::complete_task(conn, task_id)
-        })
+        self.db
+            .with_conn(|conn| queries::complete_task(conn, task_id))
     }
 
     // ========================================================================
@@ -170,8 +177,8 @@ impl HiggzLife {
 
     /// Log a mood/energy check-in
     pub fn log_checkin(&self, params: LogCheckinParams) -> Result<Uuid> {
-        let activity = Activity::new(ActivityType::Checkin)
-            .with_notes(params.notes.unwrap_or_default());
+        let activity =
+            Activity::new(ActivityType::Checkin).with_notes(params.notes.unwrap_or_default());
 
         let checkin = Checkin {
             activity_id: activity.id,
@@ -216,9 +223,7 @@ impl HiggzLife {
 
     /// Get current weight
     pub fn get_weight(&self) -> Result<Option<f64>> {
-        self.db.with_conn(|conn| {
-            queries::get_latest_weight(conn)
-        })
+        self.db.with_conn(|conn| queries::get_latest_weight(conn))
     }
 
     // ========================================================================
@@ -227,9 +232,8 @@ impl HiggzLife {
 
     /// Get today's activities
     pub fn get_today(&self) -> Result<Vec<ActivitySummary>> {
-        self.db.with_conn(|conn| {
-            queries::list_activities_today(conn)
-        })
+        self.db
+            .with_conn(|conn| queries::list_activities_today(conn))
     }
 }
 

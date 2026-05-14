@@ -85,8 +85,8 @@ pub struct MealItem {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Food {
     pub id: Uuid,
-    pub name: String,           // lowercase normalized
-    pub display_name: String,   // user-facing capitalization
+    pub name: String,         // lowercase normalized
+    pub display_name: String, // user-facing capitalization
     pub default_serving_id: Option<Uuid>,
     pub last_used_at: Option<chrono::DateTime<chrono::Utc>>,
     pub use_count: i32,
@@ -99,8 +99,8 @@ pub struct Food {
 pub struct Serving {
     pub id: Uuid,
     pub food_id: Uuid,
-    pub label: String,           // "100g", "1 cup cooked", "1 medium"
-    pub grams: Option<f64>,      // optional, for cross-unit math
+    pub label: String,      // "100g", "1 cup cooked", "1 medium"
+    pub grams: Option<f64>, // optional, for cross-unit math
     pub calories: Option<f64>,
     pub protein_g: Option<f64>,
     pub carbs_g: Option<f64>,

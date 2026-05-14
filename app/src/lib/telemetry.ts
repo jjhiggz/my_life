@@ -6,6 +6,64 @@ import { invoke as rawInvoke } from "@tauri-apps/api/core";
 
 const isDev = import.meta.env.DEV;
 
+function hasTauriRuntime(): boolean {
+  const internals = (window as unknown as {
+    __TAURI_INTERNALS__?: { invoke?: unknown; transformCallback?: unknown };
+  }).__TAURI_INTERNALS__;
+  return typeof internals?.invoke === "function";
+}
+
+function browserPreviewFallback<T>(
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  const emptyArrays = new Set([
+    "list_calendar_events",
+    "list_logged_activities",
+    "list_foods",
+    "search_foods",
+    "list_food_servings",
+    "list_meal_templates",
+    "list_plan_dates",
+    "list_journal_entries",
+  ]);
+  if (emptyArrays.has(command)) return Promise.resolve([] as T);
+  if (command === "get_agent_settings") {
+    return Promise.resolve({
+      provider: "openai",
+      model: "gpt-5-mini",
+      endpoint: "https://api.openai.com/v1/responses",
+      api_token_configured: false,
+    } as T);
+  }
+  if (command === "save_agent_settings") {
+    const input = args?.input as
+      | {
+          provider?: string;
+          model?: string;
+          endpoint?: string;
+          api_token?: string;
+        }
+      | undefined;
+    return Promise.resolve({
+      provider: input?.provider ?? "openai",
+      model: input?.model ?? "gpt-5-mini",
+      endpoint: input?.endpoint ?? "https://api.openai.com/v1/responses",
+      api_token_configured: Boolean(input?.api_token),
+    } as T);
+  }
+  if (command === "clear_agent_api_token") {
+    return Promise.resolve({
+      provider: "openai",
+      model: "gpt-5-mini",
+      endpoint: "https://api.openai.com/v1/responses",
+      api_token_configured: false,
+    } as T);
+  }
+  if (command === "pty_write") return Promise.resolve(undefined as T);
+  return Promise.reject(new Error(`Tauri runtime unavailable for ${command}`));
+}
+
 export function initTelemetry() {
   if (!isDev) return;
 
@@ -47,6 +105,10 @@ export function invoke<T>(
   command: string,
   args?: Record<string, unknown>,
 ): Promise<T> {
+  if (!hasTauriRuntime()) {
+    return browserPreviewFallback<T>(command, args);
+  }
+
   if (!isDev) {
     return rawInvoke<T>(command, args);
   }
