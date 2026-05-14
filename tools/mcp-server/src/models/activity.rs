@@ -54,6 +54,9 @@ pub enum ActivityType {
     Checkin,
     Garden,
     Quiz,
+    WeightLog,
+    JournalLog,
+    CalendarEvent,
 }
 
 impl std::fmt::Display for ActivityType {
@@ -65,6 +68,9 @@ impl std::fmt::Display for ActivityType {
             Self::Checkin => write!(f, "checkin"),
             Self::Garden => write!(f, "garden"),
             Self::Quiz => write!(f, "quiz"),
+            Self::WeightLog => write!(f, "weight_log"),
+            Self::JournalLog => write!(f, "journal_log"),
+            Self::CalendarEvent => write!(f, "calendar_event"),
         }
     }
 }
@@ -80,6 +86,9 @@ impl std::str::FromStr for ActivityType {
             "checkin" => Ok(Self::Checkin),
             "garden" => Ok(Self::Garden),
             "quiz" => Ok(Self::Quiz),
+            "weight_log" => Ok(Self::WeightLog),
+            "journal_log" => Ok(Self::JournalLog),
+            "calendar_event" => Ok(Self::CalendarEvent),
             _ => Err(format!("Unknown activity type: {}", s)),
         }
     }

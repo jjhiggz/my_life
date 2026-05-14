@@ -5,7 +5,21 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import "@xterm/xterm/css/xterm.css";
 
-export default function TerminalView() {
+type TerminalViewProps = {
+  outputEvent?: string;
+  openCommand?: string;
+  writeCommand?: string;
+  resizeCommand?: string;
+  openArgs?: Record<string, unknown>;
+};
+
+function themeColor(variable: string): string {
+  return `hsl(${getComputedStyle(document.documentElement)
+    .getPropertyValue(variable)
+    .trim()})`;
+}
+
+export default function TerminalView(props: TerminalViewProps = {}) {
   let host!: HTMLDivElement;
   let term: Terminal;
   let fit: FitAddon;
@@ -18,8 +32,8 @@ export default function TerminalView() {
       fontSize: 13,
       cursorBlink: true,
       theme: {
-        background: "#1e1e1e",
-        foreground: "#d4d4d4",
+        background: themeColor("--background"),
+        foreground: themeColor("--foreground"),
       },
     });
     fit = new FitAddon();
@@ -27,19 +41,28 @@ export default function TerminalView() {
     term.open(host);
     fit.fit();
 
-    unlisten = await listen<string>("pty-output", (event) => {
+    const outputEvent = props.outputEvent ?? "pty-output";
+    const openCommand = props.openCommand ?? "pty_open";
+    const writeCommand = props.writeCommand ?? "pty_write";
+    const resizeCommand = props.resizeCommand ?? "pty_resize";
+
+    unlisten = await listen<string>(outputEvent, (event) => {
       term.write(event.payload);
     });
 
     term.onData((data) => {
-      invoke("pty_write", { data });
+      invoke(writeCommand, { data });
     });
 
-    await invoke("pty_open", { rows: term.rows, cols: term.cols });
+    await invoke(openCommand, {
+      ...(props.openArgs ?? {}),
+      rows: term.rows,
+      cols: term.cols,
+    });
 
     resizeObserver = new ResizeObserver(() => {
       fit.fit();
-      invoke("pty_resize", { rows: term.rows, cols: term.cols });
+      invoke(resizeCommand, { rows: term.rows, cols: term.cols });
     });
     resizeObserver.observe(host);
   });

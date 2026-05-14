@@ -43,6 +43,24 @@ const MIGRATIONS: &[Migration] = &[
         pre: Some(m003_add_columns),
         sql: include_str!("migrations/003_workout_schema.sql"),
     },
+    Migration {
+        version: 4,
+        name: "weight_log_activities",
+        pre: Some(m004_add_body_activity_id),
+        sql: include_str!("migrations/004_weight_log_activities.sql"),
+    },
+    Migration {
+        version: 5,
+        name: "calendar_events",
+        pre: None,
+        sql: include_str!("migrations/005_calendar_events.sql"),
+    },
+    Migration {
+        version: 6,
+        name: "calendar_recurrence",
+        pre: Some(m006_add_calendar_recurrence_columns),
+        sql: include_str!("migrations/006_calendar_recurrence.sql"),
+    },
 ];
 
 /// Open the SQLite DB at `path`, applying any pending migrations, and
@@ -126,6 +144,40 @@ fn m001_add_meal_items_food_columns(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+fn m006_add_calendar_recurrence_columns(conn: &Connection) -> Result<()> {
+    let table_exists: bool = conn
+        .query_row(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='calendar_events'",
+            [],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
+    if !table_exists {
+        return Ok(());
+    }
+
+    let mut stmt = conn.prepare("PRAGMA table_info(calendar_events)")?;
+    let cols: Vec<String> = stmt
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+    let has = |name: &str| cols.iter().any(|c| c == name);
+
+    if !has("recurrence_rule") {
+        conn.execute(
+            "ALTER TABLE calendar_events ADD COLUMN recurrence_rule TEXT",
+            [],
+        )?;
+    }
+    if !has("recurrence_until") {
+        conn.execute(
+            "ALTER TABLE calendar_events ADD COLUMN recurrence_until TEXT",
+            [],
+        )?;
+    }
+    Ok(())
+}
+
 /// Idempotently add a column to a table. No-op if the column already exists
 /// or the table doesn't exist yet.
 fn add_column_if_missing(
@@ -181,6 +233,16 @@ fn m003_add_columns(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+fn m004_add_body_activity_id(conn: &Connection) -> Result<()> {
+    add_column_if_missing(
+        conn,
+        "body_metrics",
+        "activity_id",
+        "TEXT REFERENCES activities(id) ON DELETE SET NULL",
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -201,12 +263,12 @@ mod tests {
         // Spot-check the schema landed.
         let count: i32 = conn
             .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('foods', 'servings', 'meal_items', 'activities')",
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('foods', 'servings', 'meal_items', 'activities', 'calendar_events')",
                 [],
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(count, 4);
+        assert_eq!(count, 5);
     }
 
     #[test]
@@ -280,7 +342,8 @@ mod tests {
     fn m003_lands_workout_schema_changes() {
         let mut conn = Connection::open_in_memory().unwrap();
         migrate(&mut conn).unwrap();
-        assert_eq!(user_version(&conn), 3);
+        let latest = MIGRATIONS.last().unwrap().version;
+        assert_eq!(user_version(&conn), latest);
 
         // exercise_library exists.
         let lib_exists: i32 = conn

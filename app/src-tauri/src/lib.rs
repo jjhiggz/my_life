@@ -6,10 +6,47 @@ use std::thread;
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
+use chrono::{Datelike, NaiveDate};
 
 struct PtyState {
     master: Mutex<Option<Box<dyn MasterPty + Send>>>,
     writer: Mutex<Option<Box<dyn Write + Send>>>,
+}
+
+struct JournalEditorPtyState {
+    master: Mutex<Option<Box<dyn MasterPty + Send>>>,
+    writer: Mutex<Option<Box<dyn Write + Send>>>,
+}
+
+fn command_on_path(name: &str) -> Option<PathBuf> {
+    std::env::var_os("PATH").and_then(|paths| {
+        std::env::split_paths(&paths)
+            .map(|dir| dir.join(name))
+            .find(|path| path.is_file())
+    })
+}
+
+fn agent_cwd() -> PathBuf {
+    if let Ok(repo) = std::env::var("HIGGZLIFE_REPO") {
+        let path = PathBuf::from(repo);
+        if path.exists() {
+            return path;
+        }
+    }
+
+    if let Some(manifest_dir) = option_env!("CARGO_MANIFEST_DIR") {
+        let path = PathBuf::from(manifest_dir);
+        if let Some(repo_root) = path.parent().and_then(|p| p.parent()) {
+            let repo_root = repo_root.to_path_buf();
+            if repo_root.join("AGENTS.md").exists() {
+                return repo_root;
+            }
+        }
+    }
+
+    std::env::var("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("."))
 }
 
 #[tauri::command]
@@ -29,14 +66,14 @@ fn pty_open(
         })
         .map_err(|e| e.to_string())?;
 
-    // Spawn the user's shell so they can type `claude` themselves for now.
-    // Later: detect `claude` binary and spawn directly.
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-    let mut cmd = CommandBuilder::new(shell);
+    let mut cmd = if let Some(codex) = command_on_path("codex") {
+        CommandBuilder::new(codex)
+    } else {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+        CommandBuilder::new(shell)
+    };
     cmd.env("TERM", "xterm-256color");
-    if let Ok(home) = std::env::var("HOME") {
-        cmd.cwd(home);
-    }
+    cmd.cwd(agent_cwd());
 
     let _child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     drop(pair.slave);
@@ -77,6 +114,117 @@ fn pty_write(state: State<'_, PtyState>, data: String) -> Result<(), String> {
 
 #[tauri::command]
 fn pty_resize(state: State<'_, PtyState>, rows: u16, cols: u16) -> Result<(), String> {
+    let guard = state.master.lock().unwrap();
+    if let Some(master) = guard.as_ref() {
+        master
+            .resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn journal_editor_pty_open(
+    app: AppHandle,
+    state: State<'_, JournalEditorPtyState>,
+    interval: String,
+    key: String,
+    rows: u16,
+    cols: u16,
+) -> Result<(), String> {
+    let path = ensure_journal_entry(&interval, &key)?;
+    let before = std::fs::read_to_string(&path).unwrap_or_default();
+    let interval_for_activity = interval.clone();
+    let key_for_activity = key.clone();
+    let path_for_activity = path.clone();
+    let pty_system = native_pty_system();
+    let pair = pty_system
+        .openpty(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| e.to_string())?;
+
+    let editor = command_on_path("nvim")
+        .or_else(|| command_on_path("vim"))
+        .or_else(|| {
+            std::env::var("VISUAL")
+                .ok()
+                .or_else(|| std::env::var("EDITOR").ok())
+                .and_then(|ed| ed.split_whitespace().next().map(str::to_string))
+                .and_then(|ed| command_on_path(&ed).or_else(|| Some(PathBuf::from(ed))))
+        })
+        .unwrap_or_else(|| PathBuf::from("vi"));
+
+    let mut cmd = CommandBuilder::new(editor);
+    cmd.arg(path.to_string_lossy().to_string());
+    cmd.env("TERM", "xterm-256color");
+    cmd.cwd(agent_cwd());
+
+    let mut child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
+    drop(pair.slave);
+
+    let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
+    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
+
+    *state.master.lock().unwrap() = Some(pair.master);
+    *state.writer.lock().unwrap() = Some(writer);
+
+    thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let chunk = String::from_utf8_lossy(&buf[..n]).into_owned();
+                    let _ = app.emit("journal-editor-pty-output", chunk);
+                }
+                Err(_) => break,
+            }
+        }
+        let _ = child.wait();
+        let after = std::fs::read_to_string(&path_for_activity).unwrap_or_default();
+        if before != after {
+            let _ = create_journal_log_activity(
+                &interval_for_activity,
+                &key_for_activity,
+                &path_for_activity,
+                &before,
+                &after,
+            );
+        }
+        let _ = app.emit("journal-editor-pty-exit", ());
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+fn journal_editor_pty_write(
+    state: State<'_, JournalEditorPtyState>,
+    data: String,
+) -> Result<(), String> {
+    let mut guard = state.writer.lock().unwrap();
+    if let Some(writer) = guard.as_mut() {
+        writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
+        writer.flush().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn journal_editor_pty_resize(
+    state: State<'_, JournalEditorPtyState>,
+    rows: u16,
+    cols: u16,
+) -> Result<(), String> {
     let guard = state.master.lock().unwrap();
     if let Some(master) = guard.as_ref() {
         master
@@ -1321,6 +1469,87 @@ struct ActivityCard {
     detail: Option<String>,
 }
 
+#[derive(Serialize, Clone)]
+struct CalendarEvent {
+    activity_id: String,
+    title: String,
+    notes: Option<String>,
+    starts_at: String,
+    ends_at: Option<String>,
+    all_day: bool,
+    location: Option<String>,
+    status: String,
+    recurrence_rule: Option<String>,
+    recurrence_until: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NewCalendarEvent {
+    title: String,
+    starts_at: String,
+    ends_at: Option<String>,
+    all_day: bool,
+    location: Option<String>,
+    notes: Option<String>,
+    recurrence_rule: Option<String>,
+    recurrence_until: Option<String>,
+}
+
+#[derive(Serialize)]
+struct AnalyticsWeightPoint {
+    id: String,
+    activity_id: Option<String>,
+    recorded_at: String,
+    date: String,
+    weight_lbs: f64,
+    body_fat_pct: Option<f64>,
+    notes: Option<String>,
+}
+
+#[derive(Serialize)]
+struct AnalyticsWorkoutPoint {
+    date: String,
+    workout_count: i32,
+    total_duration_min: i32,
+}
+
+#[derive(Serialize)]
+struct AnalyticsBreakdownItem {
+    key: String,
+    label: String,
+    count: i32,
+    total_duration_min: Option<i32>,
+}
+
+#[derive(Serialize)]
+struct AnalyticsOverview {
+    weight_points: Vec<AnalyticsWeightPoint>,
+    workout_points: Vec<AnalyticsWorkoutPoint>,
+    activity_mix: Vec<AnalyticsBreakdownItem>,
+    productivity_breakdown: Vec<AnalyticsBreakdownItem>,
+}
+
+#[derive(Serialize)]
+struct JournalEntrySummary {
+    interval: String,
+    key: String,
+    title: String,
+    path: String,
+    exists: bool,
+    updated_at: Option<String>,
+}
+
+#[derive(Serialize)]
+struct JournalEntry {
+    interval: String,
+    key: String,
+    title: String,
+    path: String,
+    exists: bool,
+    markdown: String,
+}
+
 fn logs_dir() -> PathBuf {
     // Walk up from the running binary to find the project root, or fall back
     // to a sensible default for dev.
@@ -1340,7 +1569,15 @@ fn plans_dir() -> PathBuf {
 }
 
 fn notes_dir() -> PathBuf {
-    let dir = PathBuf::from("/Users/jonhigger/Projects/higgzlife/notes");
+    let dir = agent_cwd().join("notes");
+    if !dir.exists() {
+        let _ = std::fs::create_dir_all(&dir);
+    }
+    dir
+}
+
+fn journal_dir() -> PathBuf {
+    let dir = agent_cwd().join("journal");
     if !dir.exists() {
         let _ = std::fs::create_dir_all(&dir);
     }
@@ -1359,6 +1596,192 @@ fn note_template(title: &str) -> String {
     }
 }
 
+fn validate_interval(interval: &str) -> Result<&str, String> {
+    match interval {
+        "daily" | "weekly" | "monthly" => Ok(interval),
+        _ => Err(format!("unsupported journal interval: {}", interval)),
+    }
+}
+
+fn validate_journal_key(key: &str) -> Result<(), String> {
+    let ok = key
+        .chars()
+        .all(|c| c.is_ascii_digit() || c == '-' || c == 'W');
+    if ok && !key.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("invalid journal key: {}", key))
+    }
+}
+
+fn journal_entry_path(interval: &str, key: &str) -> Result<PathBuf, String> {
+    validate_interval(interval)?;
+    validate_journal_key(key)?;
+    Ok(journal_dir().join(interval).join(format!("{}.md", key)))
+}
+
+fn journal_title(interval: &str, key: &str) -> String {
+    match interval {
+        "daily" => format!("Daily Journal - {}", key),
+        "weekly" => format!("Weekly Journal - {}", key),
+        "monthly" => format!("Monthly Journal - {}", key),
+        _ => format!("Journal - {}", key),
+    }
+}
+
+fn journal_template(interval: &str, key: &str) -> String {
+    let title = journal_title(interval, key);
+    format!("# {}\n\n", title)
+}
+
+fn create_journal_log_activity(
+    interval: &str,
+    key: &str,
+    path: &std::path::Path,
+    before: &str,
+    after: &str,
+) -> Result<(), String> {
+    let conn = open_db()?;
+    let activity_id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Local::now().to_rfc3339();
+    let title = format!("{} journal updated: {}", humanize_activity_type(interval), key);
+    let notes = format!(
+        "Journal file: {}\n\n{}",
+        path.to_string_lossy(),
+        summarize_text_diff(before, after)
+    );
+
+    conn.execute(
+        "INSERT INTO activities (id, activity_type, created_at, updated_at, status, title, notes)
+         VALUES (?1, 'journal_log', ?2, ?2, 'done', ?3, ?4)",
+        rusqlite::params![&activity_id, &now, &title, &notes],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT OR IGNORE INTO activity_tags (activity_id, tag) VALUES (?1, 'journal')",
+        rusqlite::params![&activity_id],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT OR IGNORE INTO activity_tags (activity_id, tag) VALUES (?1, ?2)",
+        rusqlite::params![&activity_id, interval],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn summarize_text_diff(before: &str, after: &str) -> String {
+    let before_lines: Vec<&str> = before.lines().collect();
+    let after_lines: Vec<&str> = after.lines().collect();
+    let before_set: std::collections::HashSet<&str> = before_lines.iter().copied().collect();
+    let after_set: std::collections::HashSet<&str> = after_lines.iter().copied().collect();
+    let mut removed: Vec<String> = before_lines
+        .iter()
+        .filter(|line| !line.trim().is_empty() && !after_set.contains(**line))
+        .take(12)
+        .map(|line| format!("- {}", line))
+        .collect();
+    let mut added: Vec<String> = after_lines
+        .iter()
+        .filter(|line| !line.trim().is_empty() && !before_set.contains(**line))
+        .take(12)
+        .map(|line| format!("+ {}", line))
+        .collect();
+
+    if removed.is_empty() && added.is_empty() {
+        let before_count = before_lines.len();
+        let after_count = after_lines.len();
+        return format!(
+            "Changed whitespace or formatting only.\nLines: {} -> {}",
+            before_count, after_count
+        );
+    }
+
+    let mut out = vec![
+        format!("Lines: {} -> {}", before_lines.len(), after_lines.len()),
+        String::new(),
+        "Diff summary:".to_string(),
+    ];
+    out.append(&mut removed);
+    out.append(&mut added);
+    out.join("\n")
+}
+
+fn ensure_journal_entry(interval: &str, key: &str) -> Result<PathBuf, String> {
+    let path = journal_entry_path(interval, key)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("mkdir {:?}: {}", parent, e))?;
+    }
+    if !path.exists() {
+        std::fs::write(&path, journal_template(interval, key))
+            .map_err(|e| format!("write template {:?}: {}", path, e))?;
+    }
+    Ok(path)
+}
+
+#[tauri::command]
+fn list_journal_entries(interval: String) -> Result<Vec<JournalEntrySummary>, String> {
+    let interval = validate_interval(&interval)?.to_string();
+    let dir = journal_dir().join(&interval);
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+    let mut entries = Vec::new();
+    for entry in std::fs::read_dir(&dir).map_err(|e| format!("read_dir {:?}: {}", dir, e))? {
+        let path = entry.map_err(|e| e.to_string())?.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("md") {
+            continue;
+        }
+        let Some(key) = path.file_stem().and_then(|s| s.to_str()).map(str::to_string) else {
+            continue;
+        };
+        let updated_at = path
+            .metadata()
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| {
+                let dt: chrono::DateTime<chrono::Local> = t.into();
+                Some(dt.to_rfc3339())
+            });
+        entries.push(JournalEntrySummary {
+            interval: interval.clone(),
+            title: journal_title(&interval, &key),
+            key,
+            path: path.to_string_lossy().to_string(),
+            exists: true,
+            updated_at,
+        });
+    }
+    entries.sort_by(|a, b| b.key.cmp(&a.key));
+    Ok(entries)
+}
+
+#[tauri::command]
+fn read_journal_entry(interval: String, key: String) -> Result<JournalEntry, String> {
+    let interval = validate_interval(&interval)?.to_string();
+    let path = journal_entry_path(&interval, &key)?;
+    let exists = path.exists();
+    let markdown = if exists {
+        std::fs::read_to_string(&path).map_err(|e| format!("read {:?}: {}", path, e))?
+    } else {
+        journal_template(&interval, &key)
+    };
+    Ok(JournalEntry {
+        title: journal_title(&interval, &key),
+        interval,
+        key,
+        path: path.to_string_lossy().to_string(),
+        exists,
+        markdown,
+    })
+}
+
+#[tauri::command]
+fn open_journal_entry(interval: String, key: String) -> Result<(), String> {
+    let path = ensure_journal_entry(&interval, &key)?;
+    spawn_editor(&path)
+}
+
 #[tauri::command]
 fn read_activity_note(activity_id: String) -> Result<String, String> {
     let path = note_path(&activity_id);
@@ -1366,6 +1789,378 @@ fn read_activity_note(activity_id: String) -> Result<String, String> {
         return Ok(String::new());
     }
     std::fs::read_to_string(&path).map_err(|e| format!("read {:?}: {}", path, e))
+}
+
+#[tauri::command]
+fn log_weight_activity(
+    weight_lbs: f64,
+    body_fat_pct: Option<f64>,
+    notes: Option<String>,
+) -> Result<String, String> {
+    let conn = open_db()?;
+    let activity_id = uuid::Uuid::new_v4().to_string();
+    let metric_id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Local::now().to_rfc3339();
+    let title = format!("Logged weight: {:.1} lb", weight_lbs);
+
+    conn.execute(
+        "INSERT INTO activities (id, activity_type, created_at, updated_at, status, title, notes)
+         VALUES (?1, 'weight_log', ?2, ?2, 'done', ?3, ?4)",
+        rusqlite::params![&activity_id, &now, &title, &notes],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO body_metrics
+            (id, activity_id, recorded_at, weight_lbs, body_fat_pct, notes)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![
+            &metric_id,
+            &activity_id,
+            &now,
+            &weight_lbs,
+            &body_fat_pct,
+            &notes
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT OR IGNORE INTO activity_tags (activity_id, tag) VALUES (?1, 'health')",
+        rusqlite::params![&activity_id],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT OR IGNORE INTO activity_tags (activity_id, tag) VALUES (?1, 'weight')",
+        rusqlite::params![&activity_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(activity_id)
+}
+
+fn normalize_recurrence_rule(rule: Option<String>) -> Option<String> {
+    match rule
+        .as_deref()
+        .map(str::trim)
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("daily" | "weekly" | "monthly" | "yearly") => {
+            Some(rule.unwrap().trim().to_ascii_lowercase())
+        }
+        Some("annual" | "annually") => Some("yearly".to_string()),
+        _ => None,
+    }
+}
+
+fn parse_calendar_date(value: &str) -> Option<NaiveDate> {
+    value
+        .get(0..10)
+        .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
+}
+
+fn last_day_of_month(year: i32, month: u32) -> u32 {
+    let (next_year, next_month) = if month == 12 {
+        (year + 1, 1)
+    } else {
+        (year, month + 1)
+    };
+    NaiveDate::from_ymd_opt(next_year, next_month, 1)
+        .and_then(|d| d.pred_opt())
+        .map(|d| d.day())
+        .unwrap_or(28)
+}
+
+fn add_months_clamped(date: NaiveDate, months: i32) -> NaiveDate {
+    let month_index = date.year() * 12 + date.month0() as i32 + months;
+    let year = month_index.div_euclid(12);
+    let month0 = month_index.rem_euclid(12) as u32;
+    let month = month0 + 1;
+    let day = date.day().min(last_day_of_month(year, month));
+    NaiveDate::from_ymd_opt(year, month, day).unwrap_or(date)
+}
+
+fn next_recurrence_date(date: NaiveDate, rule: &str) -> Option<NaiveDate> {
+    match rule {
+        "daily" => date.succ_opt(),
+        "weekly" => date.checked_add_signed(chrono::Duration::days(7)),
+        "monthly" => Some(add_months_clamped(date, 1)),
+        "yearly" => Some(add_months_clamped(date, 12)),
+        _ => None,
+    }
+}
+
+fn replace_calendar_date(value: &str, date: NaiveDate) -> String {
+    if value.len() <= 10 {
+        date.to_string()
+    } else {
+        format!("{}{}", date, &value[10..])
+    }
+}
+
+fn calendar_event_in_range(
+    event: &CalendarEvent,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Vec<CalendarEvent> {
+    let Some(start_date) = parse_calendar_date(&event.starts_at) else {
+        return Vec::new();
+    };
+    let Some(rule) = event.recurrence_rule.as_deref() else {
+        return if start_date >= from && start_date <= to {
+            vec![CalendarEvent { ..event.clone() }]
+        } else {
+            Vec::new()
+        };
+    };
+
+    let until = event
+        .recurrence_until
+        .as_deref()
+        .and_then(parse_calendar_date)
+        .unwrap_or(to);
+    let mut date = start_date;
+    let mut out = Vec::new();
+    let mut guard = 0;
+    while date <= to && date <= until && guard < 2000 {
+        if date >= from {
+            let mut occurrence = event.clone();
+            occurrence.starts_at = replace_calendar_date(&event.starts_at, date);
+            occurrence.ends_at = event
+                .ends_at
+                .as_deref()
+                .map(|end| replace_calendar_date(end, date));
+            out.push(occurrence);
+        }
+        let Some(next) = next_recurrence_date(date, rule) else {
+            break;
+        };
+        if next <= date {
+            break;
+        }
+        date = next;
+        guard += 1;
+    }
+    out
+}
+
+#[tauri::command]
+fn create_calendar_event(input: NewCalendarEvent) -> Result<String, String> {
+    let conn = open_db()?;
+    let activity_id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Local::now().to_rfc3339();
+    let title = input.title.trim().to_string();
+    if title.is_empty() {
+        return Err("Title is required".to_string());
+    }
+    if input.starts_at.trim().is_empty() {
+        return Err("Start date is required".to_string());
+    }
+    let recurrence_rule = normalize_recurrence_rule(input.recurrence_rule);
+
+    conn.execute(
+        "INSERT INTO activities (id, activity_type, created_at, updated_at, status, title, notes)
+         VALUES (?1, 'calendar_event', ?2, ?2, 'planned', ?3, ?4)",
+        rusqlite::params![&activity_id, &now, &title, &input.notes],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO calendar_events
+            (activity_id, starts_at, ends_at, all_day, location, source, recurrence_rule, recurrence_until)
+         VALUES (?1, ?2, ?3, ?4, ?5, 'app', ?6, ?7)",
+        rusqlite::params![
+            &activity_id,
+            &input.starts_at,
+            &input.ends_at,
+            if input.all_day { 1 } else { 0 },
+            &input.location,
+            &recurrence_rule,
+            &input.recurrence_until,
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT OR IGNORE INTO activity_tags (activity_id, tag) VALUES (?1, 'calendar')",
+        rusqlite::params![&activity_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(activity_id)
+}
+
+#[tauri::command]
+fn list_calendar_events(from_date: Option<String>, to_date: Option<String>) -> Result<Vec<CalendarEvent>, String> {
+    let conn = open_db()?;
+    let from = from_date.unwrap_or_else(|| chrono::Local::now().date_naive().to_string());
+    let to = to_date.unwrap_or_else(|| {
+        (chrono::Local::now().date_naive() + chrono::Duration::days(90)).to_string()
+    });
+    let from_naive = NaiveDate::parse_from_str(&from, "%Y-%m-%d").map_err(|e| e.to_string())?;
+    let to_naive = NaiveDate::parse_from_str(&to, "%Y-%m-%d").map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT a.id, COALESCE(a.title, 'Untitled event'), a.notes,
+                    ce.starts_at, ce.ends_at, ce.all_day, ce.location, a.status,
+                    ce.recurrence_rule, ce.recurrence_until
+             FROM calendar_events ce
+             JOIN activities a ON a.id = ce.activity_id
+             WHERE a.status != 'skipped'
+             ORDER BY ce.starts_at ASC",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map([], |r| {
+            Ok(CalendarEvent {
+                activity_id: r.get(0)?,
+                title: r.get(1)?,
+                notes: r.get(2)?,
+                starts_at: r.get(3)?,
+                ends_at: r.get(4)?,
+                all_day: r.get::<_, i32>(5)? == 1,
+                location: r.get(6)?,
+                status: r.get(7)?,
+                recurrence_rule: r.get(8)?,
+                recurrence_until: r.get(9)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut expanded = Vec::new();
+    for row in rows {
+        let event = row.map_err(|e| e.to_string())?;
+        expanded.extend(calendar_event_in_range(&event, from_naive, to_naive));
+    }
+    expanded.sort_by(|a, b| a.starts_at.cmp(&b.starts_at));
+    Ok(expanded)
+}
+
+#[tauri::command]
+fn analytics_overview() -> Result<AnalyticsOverview, String> {
+    let conn = open_db()?;
+
+    let mut weight_stmt = conn
+        .prepare(
+            "SELECT id, activity_id, recorded_at, date(recorded_at), weight_lbs, body_fat_pct, notes
+             FROM body_metrics
+             WHERE weight_lbs IS NOT NULL
+             ORDER BY recorded_at ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let weight_points: Vec<AnalyticsWeightPoint> = weight_stmt
+        .query_map([], |r| {
+            Ok(AnalyticsWeightPoint {
+                id: r.get(0)?,
+                activity_id: r.get(1)?,
+                recorded_at: r.get(2)?,
+                date: r.get(3)?,
+                weight_lbs: r.get(4)?,
+                body_fat_pct: r.get(5)?,
+                notes: r.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut workout_stmt = conn
+        .prepare(
+            "SELECT date(a.created_at) AS d,
+                    COUNT(*) AS workout_count,
+                    COALESCE(SUM(w.duration_min), 0) AS total_duration_min
+             FROM activities a
+             JOIN workouts w ON w.activity_id = a.id
+             WHERE date(a.created_at) >= date('now', 'localtime', '-90 days')
+             GROUP BY d
+             ORDER BY d ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let workout_points: Vec<AnalyticsWorkoutPoint> = workout_stmt
+        .query_map([], |r| {
+            Ok(AnalyticsWorkoutPoint {
+                date: r.get(0)?,
+                workout_count: r.get(1)?,
+                total_duration_min: r.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut mix_stmt = conn
+        .prepare(
+            "SELECT a.activity_type,
+                    COUNT(*) AS count,
+                    COALESCE(SUM(w.duration_min), 0) AS total_duration_min
+             FROM activities a
+             LEFT JOIN workouts w ON w.activity_id = a.id
+             WHERE date(a.created_at) >= date('now', 'localtime', '-30 days')
+             GROUP BY a.activity_type
+             ORDER BY count DESC, a.activity_type ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let activity_mix: Vec<AnalyticsBreakdownItem> = mix_stmt
+        .query_map([], |r| {
+            let key: String = r.get(0)?;
+            let total: i32 = r.get(2)?;
+            Ok(AnalyticsBreakdownItem {
+                label: humanize_activity_type(&key),
+                key,
+                count: r.get(1)?,
+                total_duration_min: if total > 0 { Some(total) } else { None },
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut productivity_stmt = conn
+        .prepare(
+            "SELECT COALESCE(NULLIF(t.category, ''), 'uncategorized') AS category,
+                    COUNT(*) AS count
+             FROM activities a
+             JOIN tasks t ON t.activity_id = a.id
+             WHERE a.status = 'done'
+               AND date(a.created_at) >= date('now', 'localtime', '-30 days')
+             GROUP BY category
+             ORDER BY count DESC, category ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let productivity_breakdown: Vec<AnalyticsBreakdownItem> = productivity_stmt
+        .query_map([], |r| {
+            let key: String = r.get(0)?;
+            Ok(AnalyticsBreakdownItem {
+                label: humanize_activity_type(&key),
+                key,
+                count: r.get(1)?,
+                total_duration_min: None,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(AnalyticsOverview {
+        weight_points,
+        workout_points,
+        activity_mix,
+        productivity_breakdown,
+    })
+}
+
+fn humanize_activity_type(value: &str) -> String {
+    value
+        .split('_')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[tauri::command]
@@ -1381,8 +2176,9 @@ fn open_activity_note(activity_id: String, title: String) -> Result<(), String> 
 fn spawn_editor(path: &std::path::Path) -> Result<(), String> {
     let path_str = path.to_string_lossy().to_string();
 
-    // Try $VISUAL, then $EDITOR. Spawn directly if it's a known GUI editor;
-    // otherwise fall back to macOS `open` (uses the default .md app handler).
+    // Try $VISUAL, then $EDITOR. GUI editors can spawn directly; terminal
+    // editors get a fresh Terminal.app window so Neovim/Vim are usable from
+    // the Tauri app.
     let editor = std::env::var("VISUAL")
         .ok()
         .or_else(|| std::env::var("EDITOR").ok());
@@ -1397,6 +2193,11 @@ fn spawn_editor(path: &std::path::Path) -> Result<(), String> {
                 .map_err(|e| format!("spawn {}: {}", first, e))?;
             return Ok(());
         }
+
+        let terminal_editors = ["nvim", "vim", "vi", "nano", "emacs"];
+        if terminal_editors.iter().any(|name| first.ends_with(name)) {
+            return spawn_terminal_editor(first, path);
+        }
     }
 
     // Fallback: open with macOS default app for .md.
@@ -1404,6 +2205,30 @@ fn spawn_editor(path: &std::path::Path) -> Result<(), String> {
         .arg(&path_str)
         .spawn()
         .map_err(|e| format!("open {:?}: {}", path, e))?;
+    Ok(())
+}
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+fn spawn_terminal_editor(editor: &str, path: &std::path::Path) -> Result<(), String> {
+    let path_str = path.to_string_lossy().to_string();
+    let cwd = agent_cwd().to_string_lossy().to_string();
+    let script = format!(
+        "cd {} && {} {}",
+        shell_quote(&cwd),
+        shell_quote(editor),
+        shell_quote(&path_str)
+    );
+    std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(format!(
+            "tell application \"Terminal\" to do script {}",
+            shell_quote(&script)
+        ))
+        .spawn()
+        .map_err(|e| format!("open Terminal for {}: {}", editor, e))?;
     Ok(())
 }
 
@@ -1553,6 +2378,30 @@ struct ExerciseHistoryEntry {
     workout_activity_id: String,
     workout_title: Option<String>,
     sets: Vec<LoggedSet>,
+}
+
+#[derive(Serialize)]
+struct TopWorkoutKind {
+    name: String,
+    count: i32,
+}
+
+#[derive(Serialize)]
+struct WorkoutStats {
+    period_label: String,
+    days_logged: i32,
+    workout_count: i32,
+    total_duration_min: i32,
+    cardio_min: i32,
+    strength_min: i32,
+    other_min: i32,
+    total_sets: i32,
+    strength_sets: i32,
+    total_volume_lbs: f64,
+    cardio_distance_m: f64,
+    estimated_calories: i32,
+    avg_calories_per_workout: f64,
+    top_kind: Option<TopWorkoutKind>,
 }
 
 fn read_workout(conn: &rusqlite::Connection, activity_id: &str) -> Result<LoggedWorkout, String> {
@@ -1748,6 +2597,194 @@ fn list_workouts_month(year: i32, month: u32) -> Result<Vec<WorkoutDaySummary>, 
         .filter_map(|r| r.ok())
         .collect();
     Ok(rows)
+}
+
+fn workout_met(kind: Option<&str>, workout_type: &str, modality: Option<&str>) -> f64 {
+    match kind.or(Some(workout_type)) {
+        Some("strength") => 3.5,
+        Some("mobility") => 2.5,
+        Some("sport") => 6.0,
+        Some("cardio") => match modality.unwrap_or(workout_type) {
+            "bike" => 6.8,
+            "run" => 9.0,
+            "swim" => 6.0,
+            "row" => 7.0,
+            "hike" => 6.0,
+            "walk" => 3.3,
+            _ => 5.0,
+        },
+        _ => 4.0,
+    }
+}
+
+fn profile_weight_lbs() -> f64 {
+    let fallback = 260.0;
+    let path = agent_cwd().join("profile.yaml");
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return fallback;
+    };
+    let Ok(doc) = serde_yaml::from_str::<serde_yaml::Value>(&content) else {
+        return fallback;
+    };
+    doc.get("physical")
+        .and_then(|p| p.get("current_weight_lbs"))
+        .and_then(|w| w.as_f64().or_else(|| w.as_i64().map(|n| n as f64)))
+        .unwrap_or(fallback)
+}
+
+fn workout_stats_for_range(
+    start_date: &str,
+    end_date: &str,
+    period_label: &str,
+) -> Result<WorkoutStats, String> {
+    let conn = open_db()?;
+    let weight_kg = profile_weight_lbs() * 0.453_592_37;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT a.id, date(a.created_at), w.kind, w.workout_type, w.modality,
+                    COALESCE(w.duration_min, 0), COALESCE(w.distance_m, 0)
+             FROM workouts w
+             JOIN activities a ON a.id = w.activity_id
+             WHERE date(a.created_at) >= ?1 AND date(a.created_at) <= ?2
+             ORDER BY a.created_at",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows: Vec<(
+        String,
+        String,
+        Option<String>,
+        String,
+        Option<String>,
+        i32,
+        f64,
+    )> = stmt
+        .query_map(rusqlite::params![start_date, end_date], |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+                r.get(6)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut days = std::collections::HashSet::new();
+    let mut kind_counts = std::collections::HashMap::<String, i32>::new();
+    let mut total_duration_min = 0;
+    let mut cardio_min = 0;
+    let mut strength_min = 0;
+    let mut other_min = 0;
+    let mut cardio_distance_m = 0.0;
+    let mut estimated_calories = 0.0;
+
+    for (_, date, kind, workout_type, modality, duration_min, distance_m) in &rows {
+        days.insert(date.clone());
+        total_duration_min += *duration_min;
+
+        let normalized_kind = kind.as_deref().unwrap_or(workout_type.as_str());
+        *kind_counts.entry(normalized_kind.to_string()).or_insert(0) += 1;
+
+        match normalized_kind {
+            "cardio" => {
+                cardio_min += *duration_min;
+                cardio_distance_m += *distance_m;
+            }
+            "strength" => strength_min += *duration_min,
+            _ => other_min += *duration_min,
+        }
+
+        if *duration_min > 0 {
+            let met = workout_met(kind.as_deref(), workout_type, modality.as_deref());
+            estimated_calories += met * weight_kg * (*duration_min as f64 / 60.0);
+        }
+    }
+
+    let (total_sets, strength_sets, total_volume_lbs): (i32, i32, f64) = conn
+        .query_row(
+            "SELECT COUNT(s.id),
+                    SUM(CASE WHEN e.kind = 'strength' THEN 1 ELSE 0 END),
+                    COALESCE(SUM(CASE
+                        WHEN e.kind = 'strength'
+                             AND s.reps IS NOT NULL
+                             AND s.weight_lbs IS NOT NULL
+                        THEN s.reps * s.weight_lbs
+                        ELSE 0
+                    END), 0)
+             FROM exercise_sets s
+             JOIN exercises e ON e.id = s.exercise_id
+             JOIN workouts w ON w.activity_id = e.workout_id
+             JOIN activities a ON a.id = w.activity_id
+             WHERE date(a.created_at) >= ?1 AND date(a.created_at) <= ?2",
+            rusqlite::params![start_date, end_date],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .unwrap_or((0, 0, 0.0));
+
+    let top_kind = kind_counts
+        .into_iter()
+        .max_by(|a, b| a.1.cmp(&b.1).then_with(|| b.0.cmp(&a.0)))
+        .map(|(name, count)| TopWorkoutKind { name, count });
+
+    let workout_count = rows.len() as i32;
+    Ok(WorkoutStats {
+        period_label: period_label.to_string(),
+        days_logged: days.len() as i32,
+        workout_count,
+        total_duration_min,
+        cardio_min,
+        strength_min,
+        other_min,
+        total_sets,
+        strength_sets,
+        total_volume_lbs,
+        cardio_distance_m,
+        estimated_calories: estimated_calories.round() as i32,
+        avg_calories_per_workout: if workout_count > 0 {
+            estimated_calories / workout_count as f64
+        } else {
+            0.0
+        },
+        top_kind,
+    })
+}
+
+#[tauri::command]
+fn workout_day_stats(date: String) -> Result<WorkoutStats, String> {
+    workout_stats_for_range(&date, &date, "this day")
+}
+
+#[tauri::command]
+fn workout_week_stats(start_date: String) -> Result<WorkoutStats, String> {
+    let conn = open_db()?;
+    let end: String = conn
+        .query_row(
+            "SELECT date(?1, '+6 days')",
+            [&start_date],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    workout_stats_for_range(&start_date, &end, "this week")
+}
+
+#[tauri::command]
+fn workout_month_stats(year: i32, month: u32) -> Result<WorkoutStats, String> {
+    let first = format!("{:04}-{:02}-01", year, month);
+    let conn = open_db()?;
+    let last: String = conn
+        .query_row(
+            "SELECT date(?1, 'start of month', '+1 month', '-1 day')",
+            [&first],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    workout_stats_for_range(&first, &last, "this month")
 }
 
 #[tauri::command]
@@ -2253,12 +3290,24 @@ struct LoggedMealDetail {
 }
 
 #[derive(Serialize)]
+struct LoggedWeightDetail {
+    recorded_at: String,
+    weight_lbs: f64,
+    body_fat_pct: Option<f64>,
+    waist_in: Option<f64>,
+    chest_in: Option<f64>,
+    notes: Option<String>,
+}
+
+#[derive(Serialize)]
 #[serde(tag = "kind", content = "data")]
 enum ActivityPayload {
     #[serde(rename = "workout")]
     Workout(LoggedWorkout),
     #[serde(rename = "meal")]
     Meal(LoggedMealDetail),
+    #[serde(rename = "weight_log")]
+    WeightLog(LoggedWeightDetail),
     #[serde(rename = "none")]
     None,
 }
@@ -2351,6 +3400,26 @@ fn read_meal_detail(conn: &rusqlite::Connection, id: &str) -> Result<LoggedMealD
     })
 }
 
+fn read_weight_detail(conn: &rusqlite::Connection, id: &str) -> Result<LoggedWeightDetail, String> {
+    conn.query_row(
+        "SELECT recorded_at, weight_lbs, body_fat_pct, waist_in, chest_in, notes
+         FROM body_metrics WHERE activity_id = ?1
+         ORDER BY recorded_at DESC LIMIT 1",
+        [id],
+        |r| {
+            Ok(LoggedWeightDetail {
+                recorded_at: r.get(0)?,
+                weight_lbs: r.get(1)?,
+                body_fat_pct: r.get(2)?,
+                waist_in: r.get(3)?,
+                chest_in: r.get(4)?,
+                notes: r.get(5)?,
+            })
+        },
+    )
+    .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn get_activity(activity_id: String) -> Result<ActivityDetail, String> {
     let conn = open_db()?;
@@ -2358,6 +3427,7 @@ fn get_activity(activity_id: String) -> Result<ActivityDetail, String> {
     let payload = match activity.activity_type.as_str() {
         "workout" => ActivityPayload::Workout(read_workout(&conn, &activity_id)?),
         "meal" => ActivityPayload::Meal(read_meal_detail(&conn, &activity_id)?),
+        "weight_log" => ActivityPayload::WeightLog(read_weight_detail(&conn, &activity_id)?),
         _ => ActivityPayload::None,
     };
     let note_md = read_activity_note(activity_id.clone()).unwrap_or_default();
@@ -2406,6 +3476,115 @@ fn list_logged_activities() -> Result<Vec<ActivityCard>, String> {
 
     // Workouts from the DB → one card per workout.
     if let Ok(conn) = open_db() {
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT a.id, date(ce.starts_at), COALESCE(a.title, 'Calendar event'),
+                    COALESCE(ce.location, a.notes), ce.starts_at, ce.all_day
+             FROM calendar_events ce
+             JOIN activities a ON a.id = ce.activity_id
+             WHERE a.status IN ('planned', 'in_progress')
+             ORDER BY ce.starts_at ASC",
+        ) {
+            let rows = stmt.query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, Option<String>>(3)?,
+                    r.get::<_, String>(4)?,
+                    r.get::<_, i32>(5)?,
+                ))
+            });
+            if let Ok(rows) = rows {
+                for row in rows.filter_map(|r| r.ok()) {
+                    let (id, date, title, description, starts_at, all_day) = row;
+                    out.push(ActivityCard {
+                        id,
+                        name: title,
+                        goal: "life".to_string(),
+                        status: "available".to_string(),
+                        description: description.unwrap_or_else(|| "Calendar event".to_string()),
+                        date,
+                        detail: Some(if all_day == 1 {
+                            "all day".to_string()
+                        } else {
+                            starts_at
+                        }),
+                    });
+                }
+            }
+        }
+
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT id, date(created_at), title, notes
+             FROM activities
+             WHERE activity_type = 'journal_log'
+             ORDER BY created_at DESC",
+        ) {
+            let rows = stmt.query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, Option<String>>(2)?,
+                    r.get::<_, Option<String>>(3)?,
+                ))
+            });
+            if let Ok(rows) = rows {
+                for row in rows.filter_map(|r| r.ok()) {
+                    let (id, date, title, notes) = row;
+                    out.push(ActivityCard {
+                        id,
+                        name: title.unwrap_or_else(|| "Journal updated".to_string()),
+                        goal: "life".to_string(),
+                        status: "done".to_string(),
+                        description: notes
+                            .as_deref()
+                            .and_then(|n| n.lines().next())
+                            .unwrap_or("Journal entry changed")
+                            .to_string(),
+                        date,
+                        detail: Some("journal".to_string()),
+                    });
+                }
+            }
+        }
+
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT a.id, date(COALESCE(a.created_at, bm.recorded_at)) as d,
+                    bm.weight_lbs, bm.body_fat_pct, COALESCE(a.notes, bm.notes)
+             FROM body_metrics bm
+             LEFT JOIN activities a ON a.id = bm.activity_id
+             WHERE bm.weight_lbs IS NOT NULL
+             ORDER BY bm.recorded_at DESC",
+        ) {
+            let rows = stmt.query_map([], |r| {
+                Ok((
+                    r.get::<_, Option<String>>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, f64>(2)?,
+                    r.get::<_, Option<f64>>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                ))
+            });
+            if let Ok(rows) = rows {
+                for row in rows.filter_map(|r| r.ok()) {
+                    let (id, date, weight_lbs, body_fat_pct, notes) = row;
+                    let mut detail_parts = vec![format!("{:.1} lb", weight_lbs)];
+                    if let Some(pct) = body_fat_pct {
+                        detail_parts.push(format!("{:.1}% body fat", pct));
+                    }
+                    out.push(ActivityCard {
+                        id: id.unwrap_or_else(|| format!("weight-{}", date)),
+                        name: "Logged weight".to_string(),
+                        goal: "fitness".to_string(),
+                        status: "done".to_string(),
+                        description: notes.unwrap_or_else(|| "Body metric".to_string()),
+                        date,
+                        detail: Some(detail_parts.join(" · ")),
+                    });
+                }
+            }
+        }
+
         if let Ok(mut stmt) = conn.prepare(
             "SELECT a.id, date(a.created_at) as d, w.kind, w.workout_type, w.modality,
                     w.duration_min, w.distance_m, a.title,
@@ -2496,10 +3675,17 @@ pub fn run() {
             master: Mutex::new(None),
             writer: Mutex::new(None),
         })
+        .manage(JournalEditorPtyState {
+            master: Mutex::new(None),
+            writer: Mutex::new(None),
+        })
         .invoke_handler(tauri::generate_handler![
             pty_open,
             pty_write,
             pty_resize,
+            journal_editor_pty_open,
+            journal_editor_pty_write,
+            journal_editor_pty_resize,
             list_logged_activities,
             list_food_for_date,
             list_foods,
@@ -2521,6 +3707,9 @@ pub fn run() {
             list_workouts_for_date,
             list_workouts_week,
             list_workouts_month,
+            workout_day_stats,
+            workout_week_stats,
+            workout_month_stats,
             list_exercises,
             search_exercises,
             exercise_history,
@@ -2532,6 +3721,13 @@ pub fn run() {
             get_activity,
             read_activity_note,
             open_activity_note,
+            analytics_overview,
+            log_weight_activity,
+            create_calendar_event,
+            list_calendar_events,
+            list_journal_entries,
+            read_journal_entry,
+            open_journal_entry,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

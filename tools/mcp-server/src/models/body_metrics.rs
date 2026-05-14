@@ -7,6 +7,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct BodyMetrics {
     pub id: Uuid,
+    pub activity_id: Option<Uuid>,
     pub recorded_at: DateTime<Utc>,
     pub weight_lbs: Option<f64>,
     pub body_fat_pct: Option<f64>,
@@ -19,6 +20,7 @@ impl BodyMetrics {
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
+            activity_id: None,
             recorded_at: Utc::now(),
             weight_lbs: None,
             body_fat_pct: None,

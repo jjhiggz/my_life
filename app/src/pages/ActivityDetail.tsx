@@ -74,9 +74,19 @@ type LoggedMeal = {
   items: LoggedMealItem[];
 };
 
+type LoggedWeight = {
+  recorded_at: string;
+  weight_lbs: number;
+  body_fat_pct?: number;
+  waist_in?: number;
+  chest_in?: number;
+  notes?: string;
+};
+
 type ActivityPayload =
   | { kind: "workout"; data: LoggedWorkout }
   | { kind: "meal"; data: LoggedMeal }
+  | { kind: "weight_log"; data: LoggedWeight }
   | { kind: "none" };
 
 type ActivityDetail = {
@@ -114,6 +124,7 @@ const TYPE_TONE: Record<string, string> = {
   task: "bg-blue-500/15 text-blue-400",
   checkin: "bg-yellow-500/15 text-yellow-400",
   garden: "bg-green-500/15 text-green-400",
+  weight_log: "bg-emerald-500/15 text-emerald-400",
 };
 
 const STATUS_TONE: Record<string, string> = {
@@ -243,6 +254,13 @@ export default function ActivityDetail() {
             <Show when={detail()!.payload.kind === "meal"}>
               <MealDetailSection
                 meal={(detail()!.payload as { kind: "meal"; data: LoggedMeal }).data}
+              />
+            </Show>
+            <Show when={detail()!.payload.kind === "weight_log"}>
+              <WeightDetailSection
+                weight={
+                  (detail()!.payload as { kind: "weight_log"; data: LoggedWeight }).data
+                }
               />
             </Show>
           </main>
@@ -406,5 +424,38 @@ function MealDetailSection(props: { meal: LoggedMeal }) {
         </CardContent>
       </Card>
     </section>
+  );
+}
+
+function WeightDetailSection(props: { weight: LoggedWeight }) {
+  const w = props.weight;
+  return (
+    <section>
+      <h2 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+        Weight Log
+      </h2>
+      <Card>
+        <CardContent class="pt-4">
+          <div class="grid gap-3 sm:grid-cols-4">
+            <Metric label="Weight" value={`${w.weight_lbs.toFixed(1)} lb`} />
+            <Metric
+              label="Body fat"
+              value={w.body_fat_pct == null ? "—" : `${w.body_fat_pct}%`}
+            />
+            <Metric label="Waist" value={w.waist_in == null ? "—" : `${w.waist_in} in`} />
+            <Metric label="Chest" value={w.chest_in == null ? "—" : `${w.chest_in} in`} />
+          </div>
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+function Metric(props: { label: string; value: string }) {
+  return (
+    <div>
+      <div class="text-xs text-muted-foreground">{props.label}</div>
+      <div class="mt-1 text-lg font-semibold">{props.value}</div>
+    </div>
   );
 }

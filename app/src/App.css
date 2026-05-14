@@ -35,6 +35,12 @@
 
     --radius: 0.4rem;
 
+    --chart-1: 207 87% 54%;
+    --chart-2: 150 60% 48%;
+    --chart-3: 274 80% 70%;
+    --chart-4: 38 92% 60%;
+    --chart-5: 0 84% 64%;
+
     /* Sidebar tokens (shadcn sidebar component) */
     --sidebar-background: 0 0% 9%;
     --sidebar-foreground: 0 0% 83%;
@@ -84,8 +90,8 @@ body,
 .sidebar {
   width: 200px;
   flex-shrink: 0;
-  background: #252526;
-  border-right: 1px solid #333;
+  background: hsl(var(--sidebar-background));
+  border-right: 1px solid hsl(var(--sidebar-border));
   display: flex;
   flex-direction: column;
   padding: 14px 8px;
@@ -111,19 +117,19 @@ body,
   gap: 10px;
   padding: 8px 10px;
   border-radius: 5px;
-  color: #c9c9c9;
+  color: hsl(var(--sidebar-foreground));
   text-decoration: none;
   font-size: 13px;
   transition: background 0.1s ease;
 }
 
 .nav-link:hover {
-  background: #2d2d2d;
+  background: hsl(var(--sidebar-accent));
 }
 
 .nav-link.active {
-  background: #094771;
-  color: #ffffff;
+  background: hsl(var(--sidebar-primary));
+  color: hsl(var(--sidebar-primary-foreground));
 }
 
 .nav-icon {
@@ -846,12 +852,12 @@ body,
   border-color: hsl(var(--primary));
 }
 
-.qa-claude {
+.qa-agent {
   border-top: 1px solid hsl(var(--border));
   padding-top: 14px;
 }
 
-.claude-btn {
+.agent-btn {
   width: 100%;
   background: hsl(var(--secondary));
   border: 1px solid hsl(var(--border));
@@ -864,7 +870,7 @@ body,
   margin-bottom: 6px;
 }
 
-.claude-btn:hover {
+.agent-btn:hover {
   border-color: hsl(var(--ring));
 }
 

@@ -1,5 +1,5 @@
 # Task Backlog
-# Claude will pull from this when planning your day
+# The agent will pull from this when planning your day
 # Add tasks here as they come up
 
 errands:
@@ -10,11 +10,11 @@ errands:
     notes: ""
 
   - id: parenting-class
-    task: "Sign up for a parenting class"
+    task: "Find a parenting resource or class for the current stage"
     priority: high
     status: pending
-    related_goal: dad-prep
-    notes: "Research options first"
+    related_goal: dad-routines
+    notes: "Research practical options that fit family life now"
 
   - id: call-vet
     task: "Call vet"

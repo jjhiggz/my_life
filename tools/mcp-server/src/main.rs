@@ -102,6 +102,26 @@ struct CreateTaskToolParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+struct CreateCalendarEventToolParams {
+    /// Event title
+    title: String,
+    /// Start date or datetime. Use YYYY-MM-DD for all-day events or RFC3339/ISO datetime for timed events.
+    starts_at: String,
+    /// Optional end date or datetime, matching starts_at style
+    ends_at: Option<String>,
+    /// Whether this is an all-day event
+    all_day: Option<bool>,
+    /// Optional location
+    location: Option<String>,
+    /// Optional notes
+    notes: Option<String>,
+    /// Optional recurrence rule: daily, weekly, monthly, or yearly
+    recurrence_rule: Option<String>,
+    /// Optional recurrence end date as YYYY-MM-DD
+    recurrence_until: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 struct CompleteTaskToolParams {
     /// UUID of the task to complete
     task_id: String,
@@ -223,6 +243,15 @@ impl HiggzLifeServer {
         match self.do_create_task(params) {
             Ok(id) => format!("Task created successfully. ID: {}", id),
             Err(e) => format!("Error creating task: {}", e),
+        }
+    }
+
+    /// Create a calendar event
+    #[tool(description = "Create a calendar event for an upcoming commitment. Include title and starts_at (YYYY-MM-DD for all-day or ISO/RFC3339 datetime for timed events), optional ends_at, all_day, location, and notes.")]
+    fn create_calendar_event(&self, Parameters(params): Parameters<CreateCalendarEventToolParams>) -> String {
+        match self.do_create_calendar_event(params) {
+            Ok(id) => format!("Calendar event created successfully. ID: {}", id),
+            Err(e) => format!("Error creating calendar event: {}", e),
         }
     }
 
@@ -585,6 +614,49 @@ impl HiggzLifeServer {
         Ok(activity_id.to_string())
     }
 
+    fn do_create_calendar_event(&self, params: CreateCalendarEventToolParams) -> anyhow::Result<String> {
+        use chrono::Utc;
+        use uuid::Uuid;
+        use db::queries;
+
+        let activity_id = Uuid::new_v4();
+        let now = Utc::now();
+        let all_day = params.all_day.unwrap_or_else(|| params.starts_at.len() == 10);
+        let recurrence_rule = normalize_recurrence_rule(params.recurrence_rule);
+
+        let activity = Activity {
+            id: activity_id,
+            activity_type: ActivityType::CalendarEvent,
+            created_at: now,
+            updated_at: now,
+            status: ActivityStatus::Planned,
+            title: Some(params.title),
+            notes: params.notes,
+            tags: vec!["calendar".to_string()],
+        };
+
+        self.db.with_conn(|conn| {
+            queries::insert_activity(conn, &activity)?;
+            conn.execute(
+                "INSERT INTO calendar_events
+                    (activity_id, starts_at, ends_at, all_day, location, source, recurrence_rule, recurrence_until)
+                 VALUES (?1, ?2, ?3, ?4, ?5, 'mcp', ?6, ?7)",
+                rusqlite::params![
+                    activity_id.to_string(),
+                    params.starts_at,
+                    params.ends_at,
+                    if all_day { 1 } else { 0 },
+                    params.location,
+                    recurrence_rule,
+                    params.recurrence_until,
+                ],
+            )?;
+            Ok(())
+        })?;
+
+        Ok(activity_id.to_string())
+    }
+
     fn do_list_tasks(&self) -> anyhow::Result<String> {
         use db::queries;
 
@@ -662,8 +734,20 @@ impl HiggzLifeServer {
         use uuid::Uuid;
         use db::queries;
 
+        let activity_id = Uuid::new_v4();
+        let activity = Activity {
+            id: activity_id,
+            activity_type: ActivityType::WeightLog,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            status: ActivityStatus::Done,
+            title: Some(format!("Logged weight: {:.1} lb", params.weight_lbs)),
+            notes: params.notes.clone(),
+            tags: vec!["health".to_string(), "weight".to_string()],
+        };
         let metrics = BodyMetrics {
             id: Uuid::new_v4(),
+            activity_id: Some(activity_id),
             recorded_at: Utc::now(),
             weight_lbs: Some(params.weight_lbs),
             body_fat_pct: params.body_fat_pct,
@@ -673,11 +757,12 @@ impl HiggzLifeServer {
         };
 
         self.db.with_conn(|conn| {
+            queries::insert_activity(conn, &activity)?;
             queries::insert_body_metrics(conn, &metrics)?;
             Ok(())
         })?;
 
-        Ok(metrics.id.to_string())
+        Ok(activity_id.to_string())
     }
 
     fn do_get_weight(&self) -> anyhow::Result<Option<f64>> {

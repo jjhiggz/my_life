@@ -1,5 +1,5 @@
 [mcp_servers.higgzlife]
-command = "/Users/jonhigger/Projects/higgzlife/tools/mcp-server/target/release/higgzlife-mcp"
+command = "tools/mcp-server/target/release/higgzlife-mcp"
 
 [mcp_servers.sentry-spotlight]
 args = [

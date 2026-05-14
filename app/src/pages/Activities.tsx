@@ -78,9 +78,64 @@ async function loadActivities(): Promise<Activity[]> {
 }
 
 type ViewMode = "kanban" | "list";
+type TimeFilter = "today" | "week" | "month" | "all";
+
+const TIME_FILTERS: { key: TimeFilter; label: string }[] = [
+  { key: "today", label: "Today" },
+  { key: "week", label: "Week" },
+  { key: "month", label: "Month" },
+  { key: "all", label: "All" },
+];
+
+function todayIso(): string {
+  return new Date().toLocaleDateString("en-CA");
+}
+
+function startOfWeekIso(): string {
+  const d = new Date(todayIso() + "T00:00:00");
+  d.setDate(d.getDate() - d.getDay());
+  return d.toLocaleDateString("en-CA");
+}
+
+function startOfMonthIso(): string {
+  return todayIso().slice(0, 8) + "01";
+}
+
+function dateRange(filter: TimeFilter): { start?: string; end?: string } {
+  const end = todayIso();
+  if (filter === "today") return { start: end, end };
+  if (filter === "week") return { start: startOfWeekIso(), end };
+  if (filter === "month") return { start: startOfMonthIso(), end };
+  return {};
+}
+
+function inSelectedPeriod(a: Activity, filter: TimeFilter): boolean {
+  if (filter === "all") return true;
+  const { start, end } = dateRange(filter);
+  if (!start || !end) return true;
+  if (a.status !== "done") {
+    return a.date <= end;
+  }
+  return a.date >= start && a.date <= end;
+}
+
+function sortActivities(items: Activity[]): Activity[] {
+  const statusRank: Record<Status, number> = {
+    in_progress: 0,
+    available: 1,
+    done: 2,
+  };
+  return [...items].sort(
+    (a, b) =>
+      statusRank[a.status] - statusRank[b.status] ||
+      b.date.localeCompare(a.date) ||
+      a.name.localeCompare(b.name),
+  );
+}
 
 export default function Activities() {
   const [view, setView] = createSignal<ViewMode>("kanban");
+  const [timeFilter, setTimeFilter] = createSignal<TimeFilter>("today");
   const [goalFilter, setGoalFilter] = createSignal<string>("all");
   const [search, setSearch] = createSignal("");
   const [activities] = createResource(loadActivities);
@@ -94,20 +149,28 @@ export default function Activities() {
   };
 
   const filtered = () =>
-    all().filter((a) => {
+    sortActivities(all().filter((a) => {
+      if (!inSelectedPeriod(a, timeFilter())) return false;
       if (goalFilter() !== "all" && a.goal !== goalFilter()) return false;
       const q = search().toLowerCase().trim();
       if (
         q &&
         !a.name.toLowerCase().includes(q) &&
-        !a.description.toLowerCase().includes(q)
+        !a.description.toLowerCase().includes(q) &&
+        !(a.detail ?? "").toLowerCase().includes(q)
       )
         return false;
       return true;
-    });
+    }));
 
   const byStatus = (status: Status) =>
     filtered().filter((a) => a.status === status);
+
+  const totals = () => ({
+    open: filtered().filter((a) => a.status !== "done").length,
+    done: filtered().filter((a) => a.status === "done").length,
+    total: filtered().length,
+  });
 
   return (
     <div class="p-8 space-y-6">
@@ -131,7 +194,22 @@ export default function Activities() {
         </div>
       </header>
 
-      <div class="flex items-center gap-3">
+      <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="inline-flex rounded-md border border-border bg-card p-1">
+            <For each={TIME_FILTERS}>
+              {(item) => (
+                <Button
+                  variant={timeFilter() === item.key ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setTimeFilter(item.key)}
+                >
+                  {item.label}
+                </Button>
+              )}
+            </For>
+          </div>
+
         <Input
           type="text"
           placeholder="Search..."
@@ -160,6 +238,13 @@ export default function Activities() {
           </SelectTrigger>
           <SelectContent />
         </Select>
+        </div>
+
+        <div class="flex items-center gap-2 text-xs text-muted-foreground">
+          <Badge variant="outline">{totals().total} shown</Badge>
+          <Badge variant="outline">{totals().open} open</Badge>
+          <Badge variant="outline">{totals().done} done</Badge>
+        </div>
       </div>
 
       <Show when={firstLoad()}>
