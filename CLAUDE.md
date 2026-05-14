@@ -1,6 +1,7 @@
-# Claude Instructions for higgzlife
+# Claude Instructions for mylife
 
 Legacy Claude Code instructions. Codex uses `AGENTS.md` as the source of truth.
+This repo is configured for Matt Pocock's `mattpocock/skills` workflows via the `## Agent skills` block in `AGENTS.md` and the config files in `docs/agents/`.
 
 This is a personal life management system. Your role is to help plan days, track progress, and keep the user on track with their goals.
 

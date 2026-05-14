@@ -1,4 +1,4 @@
-# Codex Instructions for higgzlife
+# Codex Instructions for mylife
 
 This is a personal life management system. Your role is to help plan days, track progress, and keep the user on track with their goals.
 
@@ -32,7 +32,23 @@ Guide an interactive workout session one exercise at a time. Adapt to injuries, 
 - Prefer MCP tools for live activity, nutrition, task, workout, check-in, and weight logging.
 - Use repo files for planning context and durable plan/review artifacts.
 - Slash-command names above are conversational triggers, not external shell commands. If the user says `/today`, run that workflow directly.
-- Legacy Claude skill files live in `.claude/skills/`; use the workflows below as the Codex source of truth.
+- Use Matt Pocock's skills from `mattpocock/skills` for reusable engineering workflows. Do not use the old personal Superpowers workflows for this repo unless the user explicitly asks for them.
+
+## Agent skills
+
+This repo is configured for Matt Pocock's `mattpocock/skills` engineering workflows.
+
+### Issue tracker
+
+Issues and PRDs are tracked in GitHub Issues for `jjhiggz/my_life`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default Matt Pocock five-label triage vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repo: use root `CONTEXT.md` when present and root `docs/adr/` for decisions. See `docs/agents/domain.md`.
 
 ## Key Files
 
