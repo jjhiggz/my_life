@@ -1,6 +1,6 @@
 use anyhow::Result;
 use chrono::{DateTime, NaiveDate, Utc};
-use rusqlite::{Connection, params, Row};
+use rusqlite::{params, Connection, Row};
 use uuid::Uuid;
 
 use crate::models::*;
@@ -38,25 +38,27 @@ pub fn insert_activity(conn: &Connection, activity: &Activity) -> Result<()> {
 pub fn get_activity(conn: &Connection, id: Uuid) -> Result<Option<Activity>> {
     let mut stmt = conn.prepare(
         "SELECT id, activity_type, created_at, updated_at, status, title, notes
-         FROM activities WHERE id = ?1"
+         FROM activities WHERE id = ?1",
     )?;
 
-    let activity = stmt.query_row(params![id.to_string()], |row| {
-        Ok(Activity {
-            id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
-            activity_type: row.get::<_, String>(1)?.parse().unwrap(),
-            created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(2)?)
-                .unwrap()
-                .with_timezone(&Utc),
-            updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(3)?)
-                .unwrap()
-                .with_timezone(&Utc),
-            status: row.get::<_, String>(4)?.parse().unwrap(),
-            title: row.get(5)?,
-            notes: row.get(6)?,
-            tags: Vec::new(), // Filled below
+    let activity = stmt
+        .query_row(params![id.to_string()], |row| {
+            Ok(Activity {
+                id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap(),
+                activity_type: row.get::<_, String>(1)?.parse().unwrap(),
+                created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(2)?)
+                    .unwrap()
+                    .with_timezone(&Utc),
+                updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(3)?)
+                    .unwrap()
+                    .with_timezone(&Utc),
+                status: row.get::<_, String>(4)?.parse().unwrap(),
+                title: row.get(5)?,
+                notes: row.get(6)?,
+                tags: Vec::new(), // Filled below
+            })
         })
-    }).optional()?;
+        .optional()?;
 
     if let Some(mut activity) = activity {
         activity.tags = get_activity_tags(conn, id)?;
@@ -67,9 +69,7 @@ pub fn get_activity(conn: &Connection, id: Uuid) -> Result<Option<Activity>> {
 }
 
 pub fn get_activity_tags(conn: &Connection, activity_id: Uuid) -> Result<Vec<String>> {
-    let mut stmt = conn.prepare(
-        "SELECT tag FROM activity_tags WHERE activity_id = ?1"
-    )?;
+    let mut stmt = conn.prepare("SELECT tag FROM activity_tags WHERE activity_id = ?1")?;
 
     let tags: Vec<String> = stmt
         .query_map(params![activity_id.to_string()], |row| row.get(0))?
@@ -83,7 +83,7 @@ pub fn list_activities_today(conn: &Connection) -> Result<Vec<ActivitySummary>> 
         "SELECT id, activity_type, created_at, status, title
          FROM activities
          WHERE date(created_at) = date('now', 'localtime')
-         ORDER BY created_at DESC"
+         ORDER BY created_at DESC",
     )?;
 
     let activities: Vec<ActivitySummary> = stmt
@@ -191,10 +191,7 @@ pub fn get_meal_items(conn: &Connection, meal_id: Uuid) -> Result<Vec<MealItem>>
 }
 
 /// List all meals on a given date (with their items).
-pub fn list_meals_for_date(
-    conn: &Connection,
-    date: NaiveDate,
-) -> Result<Vec<(Activity, Meal)>> {
+pub fn list_meals_for_date(conn: &Connection, date: NaiveDate) -> Result<Vec<(Activity, Meal)>> {
     let date_str = date.format("%Y-%m-%d").to_string();
     let mut stmt = conn.prepare(
         "SELECT a.id, a.activity_type, a.created_at, a.updated_at, a.status, a.title, a.notes,
@@ -206,7 +203,15 @@ pub fn list_meals_for_date(
          ORDER BY a.created_at ASC",
     )?;
 
-    let rows: Vec<(Activity, MealType, Option<i32>, Option<f64>, Option<f64>, Option<f64>, Option<f64>)> = stmt
+    let rows: Vec<(
+        Activity,
+        MealType,
+        Option<i32>,
+        Option<f64>,
+        Option<f64>,
+        Option<f64>,
+        Option<f64>,
+    )> = stmt
         .query_map(params![&date_str], |row| {
             let id = Uuid::parse_str(&row.get::<_, String>(0)?).unwrap();
             let activity = Activity {
@@ -302,9 +307,11 @@ fn row_to_food(row: &Row) -> rusqlite::Result<Food> {
         default_serving_id: row
             .get::<_, Option<String>>(3)?
             .and_then(|s| Uuid::parse_str(&s).ok()),
-        last_used_at: row
-            .get::<_, Option<String>>(4)?
-            .map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)),
+        last_used_at: row.get::<_, Option<String>>(4)?.map(|s| {
+            DateTime::parse_from_rfc3339(&s)
+                .unwrap()
+                .with_timezone(&Utc)
+        }),
         use_count: row.get(5)?,
         created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(6)?)
             .unwrap()
@@ -518,7 +525,16 @@ pub fn backfill_foods_from_meal_items(conn: &Connection) -> Result<usize> {
          FROM meal_items
          WHERE food_id IS NULL AND food_name IS NOT NULL AND food_name != ''",
     )?;
-    let rows: Vec<(String, String, Option<String>, Option<i32>, Option<f64>, Option<f64>, Option<f64>, Option<f64>)> = stmt
+    let rows: Vec<(
+        String,
+        String,
+        Option<String>,
+        Option<i32>,
+        Option<f64>,
+        Option<f64>,
+        Option<f64>,
+        Option<f64>,
+    )> = stmt
         .query_map([], |r| {
             Ok((
                 r.get(0)?,
@@ -574,12 +590,18 @@ pub fn get_daily_nutrition(conn: &Connection, date: NaiveDate) -> Result<DailyNu
             COUNT(*)
          FROM activities a
          JOIN meals m ON a.id = m.activity_id
-         WHERE date(a.created_at) = ?1"
+         WHERE date(a.created_at) = ?1",
     )?;
 
     let (total_cal, total_protein, total_carbs, total_fat, meal_count): (i32, f64, f64, f64, i32) =
         stmt.query_row(params![&date_str], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+            ))
         })?;
 
     Ok(DailyNutrition {
@@ -694,7 +716,7 @@ pub fn list_pending_tasks(conn: &Connection) -> Result<Vec<TaskWithActivity>> {
                 WHEN 'medium' THEN 3
                 WHEN 'low' THEN 4
             END,
-            t.due_date"
+            t.due_date",
     )?;
 
     let tasks: Vec<TaskWithActivity> = stmt
@@ -704,8 +726,12 @@ pub fn list_pending_tasks(conn: &Connection) -> Result<Vec<TaskWithActivity>> {
                 title: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
                 notes: row.get(2)?,
                 status: row.get(3)?,
-                priority: row.get::<_, String>(4)?.parse().unwrap_or(TaskPriority::Medium),
-                due_date: row.get::<_, Option<String>>(5)?
+                priority: row
+                    .get::<_, String>(4)?
+                    .parse()
+                    .unwrap_or(TaskPriority::Medium),
+                due_date: row
+                    .get::<_, Option<String>>(5)?
                     .and_then(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok()),
                 category: row.get(6)?,
                 related_goal: row.get(7)?,
@@ -713,7 +739,8 @@ pub fn list_pending_tasks(conn: &Connection) -> Result<Vec<TaskWithActivity>> {
                 created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
                     .unwrap()
                     .with_timezone(&Utc),
-                completed_at: row.get::<_, Option<String>>(9)?
+                completed_at: row
+                    .get::<_, Option<String>>(9)?
                     .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
                     .map(|d| d.with_timezone(&Utc)),
             })
@@ -762,13 +789,15 @@ pub fn insert_body_metrics(conn: &Connection, metrics: &BodyMetrics) -> Result<(
 }
 
 pub fn get_latest_weight(conn: &Connection) -> Result<Option<f64>> {
-    let weight: Option<f64> = conn.query_row(
-        "SELECT weight_lbs FROM body_metrics
+    let weight: Option<f64> = conn
+        .query_row(
+            "SELECT weight_lbs FROM body_metrics
          WHERE weight_lbs IS NOT NULL
          ORDER BY recorded_at DESC LIMIT 1",
-        [],
-        |row| row.get(0),
-    ).optional()?;
+            [],
+            |row| row.get(0),
+        )
+        .optional()?;
 
     Ok(weight)
 }

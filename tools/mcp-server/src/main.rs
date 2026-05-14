@@ -5,13 +5,7 @@ mod tools;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use rmcp::{
-    ServiceExt,
-    tool,
-    tool_router,
-    handler::server::wrapper::Parameters,
-    transport::stdio,
-};
+use rmcp::{handler::server::wrapper::Parameters, tool, tool_router, transport::stdio, ServiceExt};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use tracing_subscriber;
@@ -122,6 +116,12 @@ struct CreateCalendarEventToolParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+struct DeleteCalendarEventToolParams {
+    /// UUID/activity_id of the calendar event to delete
+    activity_id: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 struct CompleteTaskToolParams {
     /// UUID of the task to complete
     task_id: String,
@@ -199,6 +199,21 @@ struct AddServingToolParams {
     make_default: Option<bool>,
 }
 
+fn normalize_recurrence_rule(rule: Option<String>) -> Option<String> {
+    match rule
+        .as_deref()
+        .map(str::trim)
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("daily" | "weekly" | "monthly" | "yearly") => {
+            Some(rule.unwrap().trim().to_ascii_lowercase())
+        }
+        Some("annual" | "annually") => Some("yearly".to_string()),
+        _ => None,
+    }
+}
+
 // ============================================================================
 // MCP Server Implementation
 // ============================================================================
@@ -211,7 +226,9 @@ struct HiggzLifeServer {
 #[tool_router(server_handler)]
 impl HiggzLifeServer {
     /// Log a meal with food items and nutritional information
-    #[tool(description = "Log a meal with food items. Include meal_type (breakfast/lunch/dinner/snack) and items with calories and protein.")]
+    #[tool(
+        description = "Log a meal with food items. Include meal_type (breakfast/lunch/dinner/snack) and items with calories and protein."
+    )]
     fn log_meal(&self, Parameters(params): Parameters<LogMealToolParams>) -> String {
         match self.do_log_meal(params) {
             Ok(summary) => summary,
@@ -220,7 +237,9 @@ impl HiggzLifeServer {
     }
 
     /// Get today's nutrition summary
-    #[tool(description = "Get today's nutrition summary including total calories, protein, and meals logged.")]
+    #[tool(
+        description = "Get today's nutrition summary including total calories, protein, and meals logged."
+    )]
     fn get_today_nutrition(&self) -> String {
         match self.do_get_nutrition() {
             Ok(summary) => summary,
@@ -229,7 +248,9 @@ impl HiggzLifeServer {
     }
 
     /// Log a workout with exercises
-    #[tool(description = "Log a workout with exercises and sets. Include workout_type (strength/cardio/yoga/etc) and exercises with sets/reps/weight.")]
+    #[tool(
+        description = "Log a workout with exercises and sets. Include workout_type (strength/cardio/yoga/etc) and exercises with sets/reps/weight."
+    )]
     fn log_workout(&self, Parameters(params): Parameters<LogWorkoutToolParams>) -> String {
         match self.do_log_workout(params) {
             Ok(id) => format!("Workout logged successfully. ID: {}", id),
@@ -238,7 +259,9 @@ impl HiggzLifeServer {
     }
 
     /// Create a new task
-    #[tool(description = "Create a new task with title, priority (urgent/high/medium/low), optional due_date (YYYY-MM-DD), category, and related_goal.")]
+    #[tool(
+        description = "Create a new task with title, priority (urgent/high/medium/low), optional due_date (YYYY-MM-DD), category, and related_goal."
+    )]
     fn create_task(&self, Parameters(params): Parameters<CreateTaskToolParams>) -> String {
         match self.do_create_task(params) {
             Ok(id) => format!("Task created successfully. ID: {}", id),
@@ -247,11 +270,30 @@ impl HiggzLifeServer {
     }
 
     /// Create a calendar event
-    #[tool(description = "Create a calendar event for an upcoming commitment. Include title and starts_at (YYYY-MM-DD for all-day or ISO/RFC3339 datetime for timed events), optional ends_at, all_day, location, and notes.")]
-    fn create_calendar_event(&self, Parameters(params): Parameters<CreateCalendarEventToolParams>) -> String {
+    #[tool(
+        description = "Create a calendar event for an upcoming commitment. Include title and starts_at (YYYY-MM-DD for all-day or ISO/RFC3339 datetime for timed events), optional ends_at, all_day, location, and notes."
+    )]
+    fn create_calendar_event(
+        &self,
+        Parameters(params): Parameters<CreateCalendarEventToolParams>,
+    ) -> String {
         match self.do_create_calendar_event(params) {
             Ok(id) => format!("Calendar event created successfully. ID: {}", id),
             Err(e) => format!("Error creating calendar event: {}", e),
+        }
+    }
+
+    /// Delete a calendar event
+    #[tool(
+        description = "Delete a calendar event by activity_id. This marks the event as skipped so it no longer appears on the calendar."
+    )]
+    fn delete_calendar_event(
+        &self,
+        Parameters(params): Parameters<DeleteCalendarEventToolParams>,
+    ) -> String {
+        match self.do_delete_calendar_event(params) {
+            Ok(()) => "Calendar event deleted successfully.".to_string(),
+            Err(e) => format!("Error deleting calendar event: {}", e),
         }
     }
 
@@ -274,7 +316,9 @@ impl HiggzLifeServer {
     }
 
     /// Log a mood/energy check-in
-    #[tool(description = "Log a check-in with mood (1-10), energy (1-10), sleep_hours, sleep_quality (1-10), stress (1-10), and hydration_oz.")]
+    #[tool(
+        description = "Log a check-in with mood (1-10), energy (1-10), sleep_hours, sleep_quality (1-10), stress (1-10), and hydration_oz."
+    )]
     fn log_checkin(&self, Parameters(params): Parameters<LogCheckinToolParams>) -> String {
         match self.do_log_checkin(params) {
             Ok(id) => format!("Check-in logged successfully. ID: {}", id),
@@ -311,7 +355,9 @@ impl HiggzLifeServer {
     }
 
     /// Search the personal food database
-    #[tool(description = "Search the personal food database by name substring. Returns matching foods with their servings (unit options). Use this before logging a meal to find existing entries.")]
+    #[tool(
+        description = "Search the personal food database by name substring. Returns matching foods with their servings (unit options). Use this before logging a meal to find existing entries."
+    )]
     fn search_foods(&self, Parameters(params): Parameters<SearchFoodsToolParams>) -> String {
         match self.do_search_foods(params) {
             Ok(s) => s,
@@ -329,7 +375,9 @@ impl HiggzLifeServer {
     }
 
     /// List foods by recency or frequency
-    #[tool(description = "List foods from the personal database, ordered by 'recent' (last_used_at) or 'frequent' (use_count). Useful for quick-add panels.")]
+    #[tool(
+        description = "List foods from the personal database, ordered by 'recent' (last_used_at) or 'frequent' (use_count). Useful for quick-add panels."
+    )]
     fn list_foods(&self, Parameters(params): Parameters<ListFoodsToolParams>) -> String {
         match self.do_list_foods(params) {
             Ok(s) => s,
@@ -338,7 +386,9 @@ impl HiggzLifeServer {
     }
 
     /// Add a new serving (unit option) to an existing food
-    #[tool(description = "Add a new serving (unit option) to an existing food. Example: add '1 medium piece' serving to 'Chicken breast' with its nutrition.")]
+    #[tool(
+        description = "Add a new serving (unit option) to an existing food. Example: add '1 medium piece' serving to 'Chicken breast' with its nutrition."
+    )]
     fn add_serving(&self, Parameters(params): Parameters<AddServingToolParams>) -> String {
         match self.do_add_serving(params) {
             Ok(s) => s,
@@ -387,7 +437,9 @@ impl HiggzLifeServer {
         use chrono::Local;
         use db::queries;
         let today = Local::now().date_naive();
-        let nutrition = self.db.with_conn(|conn| queries::get_daily_nutrition(conn, today))?;
+        let nutrition = self
+            .db
+            .with_conn(|conn| queries::get_daily_nutrition(conn, today))?;
         Ok(render_nutrition_summary(
             nutrition.total_calories,
             nutrition.total_protein_g,
@@ -397,8 +449,8 @@ impl HiggzLifeServer {
 
     fn do_log_meal(&self, params: LogMealToolParams) -> anyhow::Result<String> {
         use chrono::Utc;
-        use uuid::Uuid;
         use db::queries;
+        use uuid::Uuid;
 
         let activity_id = Uuid::new_v4();
         let now = Utc::now();
@@ -494,8 +546,8 @@ impl HiggzLifeServer {
 
     fn do_log_workout(&self, params: LogWorkoutToolParams) -> anyhow::Result<String> {
         use chrono::Utc;
-        use uuid::Uuid;
         use db::queries;
+        use uuid::Uuid;
 
         let activity_id = Uuid::new_v4();
         let now = Utc::now();
@@ -522,31 +574,39 @@ impl HiggzLifeServer {
             tags: vec![],
         };
 
-        let exercises: Vec<Exercise> = params.exercises.iter().enumerate().map(|(i, e)| {
-            let exercise_id = Uuid::new_v4();
-            let sets: Vec<ExerciseSet> = e.sets.iter().enumerate().map(|(j, s)| {
-                ExerciseSet {
-                    id: Uuid::new_v4(),
-                    exercise_id,
-                    set_number: (j + 1) as i32,
-                    reps: s.reps,
-                    weight_lbs: s.weight_lbs,
-                    duration_sec: s.duration_sec,
-                    rest_after_sec: None,
-                    rpe: None,
-                    notes: None,
-                }
-            }).collect();
+        let exercises: Vec<Exercise> = params
+            .exercises
+            .iter()
+            .enumerate()
+            .map(|(i, e)| {
+                let exercise_id = Uuid::new_v4();
+                let sets: Vec<ExerciseSet> = e
+                    .sets
+                    .iter()
+                    .enumerate()
+                    .map(|(j, s)| ExerciseSet {
+                        id: Uuid::new_v4(),
+                        exercise_id,
+                        set_number: (j + 1) as i32,
+                        reps: s.reps,
+                        weight_lbs: s.weight_lbs,
+                        duration_sec: s.duration_sec,
+                        rest_after_sec: None,
+                        rpe: None,
+                        notes: None,
+                    })
+                    .collect();
 
-            Exercise {
-                id: exercise_id,
-                workout_id: activity_id,
-                exercise_name: e.exercise_name.clone(),
-                exercise_order: i as i32,
-                notes: e.notes.clone(),
-                sets,
-            }
-        }).collect();
+                Exercise {
+                    id: exercise_id,
+                    workout_id: activity_id,
+                    exercise_name: e.exercise_name.clone(),
+                    exercise_order: i as i32,
+                    notes: e.notes.clone(),
+                    sets,
+                }
+            })
+            .collect();
 
         let workout = Workout {
             activity_id,
@@ -569,8 +629,8 @@ impl HiggzLifeServer {
 
     fn do_create_task(&self, params: CreateTaskToolParams) -> anyhow::Result<String> {
         use chrono::{NaiveDate, Utc};
-        use uuid::Uuid;
         use db::queries;
+        use uuid::Uuid;
 
         let activity_id = Uuid::new_v4();
         let now = Utc::now();
@@ -582,7 +642,8 @@ impl HiggzLifeServer {
             _ => TaskPriority::Medium,
         };
 
-        let due_date = params.due_date
+        let due_date = params
+            .due_date
             .and_then(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok());
 
         let activity = Activity {
@@ -614,14 +675,19 @@ impl HiggzLifeServer {
         Ok(activity_id.to_string())
     }
 
-    fn do_create_calendar_event(&self, params: CreateCalendarEventToolParams) -> anyhow::Result<String> {
+    fn do_create_calendar_event(
+        &self,
+        params: CreateCalendarEventToolParams,
+    ) -> anyhow::Result<String> {
         use chrono::Utc;
-        use uuid::Uuid;
         use db::queries;
+        use uuid::Uuid;
 
         let activity_id = Uuid::new_v4();
         let now = Utc::now();
-        let all_day = params.all_day.unwrap_or_else(|| params.starts_at.len() == 10);
+        let all_day = params
+            .all_day
+            .unwrap_or_else(|| params.starts_at.len() == 10);
         let recurrence_rule = normalize_recurrence_rule(params.recurrence_rule);
 
         let activity = Activity {
@@ -657,12 +723,30 @@ impl HiggzLifeServer {
         Ok(activity_id.to_string())
     }
 
+    fn do_delete_calendar_event(
+        &self,
+        params: DeleteCalendarEventToolParams,
+    ) -> anyhow::Result<()> {
+        let changed = self.db.with_conn(|conn| {
+            Ok(conn.execute(
+                "UPDATE activities
+                 SET status = 'skipped', updated_at = ?2
+                 WHERE id = ?1 AND activity_type = 'calendar_event'",
+                rusqlite::params![params.activity_id, chrono::Utc::now().to_rfc3339()],
+            )?)
+        })?;
+        if changed == 0 {
+            anyhow::bail!("Calendar event not found");
+        }
+        Ok(())
+    }
+
     fn do_list_tasks(&self) -> anyhow::Result<String> {
         use db::queries;
 
-        let tasks = self.db.with_conn(|conn| {
-            queries::list_pending_tasks(conn)
-        })?;
+        let tasks = self
+            .db
+            .with_conn(|conn| queries::list_pending_tasks(conn))?;
 
         if tasks.is_empty() {
             return Ok("No pending tasks.".to_string());
@@ -681,19 +765,18 @@ impl HiggzLifeServer {
     }
 
     fn do_complete_task(&self, params: CompleteTaskToolParams) -> anyhow::Result<()> {
-        use uuid::Uuid;
         use db::queries;
+        use uuid::Uuid;
 
         let task_id = Uuid::parse_str(&params.task_id)?;
-        self.db.with_conn(|conn| {
-            queries::complete_task(conn, task_id)
-        })
+        self.db
+            .with_conn(|conn| queries::complete_task(conn, task_id))
     }
 
     fn do_log_checkin(&self, params: LogCheckinToolParams) -> anyhow::Result<String> {
         use chrono::Utc;
-        use uuid::Uuid;
         use db::queries;
+        use uuid::Uuid;
 
         let activity_id = Uuid::new_v4();
         let now = Utc::now();
@@ -731,8 +814,8 @@ impl HiggzLifeServer {
 
     fn do_log_weight(&self, params: LogWeightToolParams) -> anyhow::Result<String> {
         use chrono::Utc;
-        use uuid::Uuid;
         use db::queries;
+        use uuid::Uuid;
 
         let activity_id = Uuid::new_v4();
         let activity = Activity {
@@ -773,9 +856,9 @@ impl HiggzLifeServer {
     fn do_get_today(&self) -> anyhow::Result<String> {
         use db::queries;
 
-        let activities = self.db.with_conn(|conn| {
-            queries::list_activities_today(conn)
-        })?;
+        let activities = self
+            .db
+            .with_conn(|conn| queries::list_activities_today(conn))?;
 
         if activities.is_empty() {
             return Ok("No activities logged today.".to_string());
@@ -799,7 +882,10 @@ impl HiggzLifeServer {
         let results = self
             .db
             .with_conn(|conn| queries::search_foods_with_servings(conn, &params.query, limit))?;
-        Ok(format_food_list(&results, &format!("Search '{}'", params.query)))
+        Ok(format_food_list(
+            &results,
+            &format!("Search '{}'", params.query),
+        ))
     }
 
     fn do_get_food(&self, params: GetFoodToolParams) -> anyhow::Result<String> {
@@ -825,11 +911,9 @@ impl HiggzLifeServer {
     fn do_list_foods(&self, params: ListFoodsToolParams) -> anyhow::Result<String> {
         use db::queries;
         let limit = params.limit.unwrap_or(20).max(1).min(100);
-        let foods = self.db.with_conn(|conn| {
-            match params.order.as_deref() {
-                Some("frequent") => queries::list_frequent_foods(conn, limit),
-                _ => queries::list_recent_foods(conn, limit),
-            }
+        let foods = self.db.with_conn(|conn| match params.order.as_deref() {
+            Some("frequent") => queries::list_frequent_foods(conn, limit),
+            _ => queries::list_recent_foods(conn, limit),
         })?;
 
         if foods.is_empty() {
@@ -840,9 +924,7 @@ impl HiggzLifeServer {
         for food in &foods {
             out.push_str(&format!(
                 "  · {} (used {}×) — {}\n",
-                food.display_name,
-                food.use_count,
-                food.id
+                food.display_name, food.use_count, food.id
             ));
         }
         Ok(out)

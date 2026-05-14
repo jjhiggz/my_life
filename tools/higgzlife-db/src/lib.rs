@@ -228,7 +228,12 @@ fn m003_add_columns(conn: &Connection) -> Result<()> {
         "exercise_lib_id",
         "TEXT REFERENCES exercise_library(id)",
     )?;
-    add_column_if_missing(conn, "exercises", "kind", "TEXT NOT NULL DEFAULT 'strength'")?;
+    add_column_if_missing(
+        conn,
+        "exercises",
+        "kind",
+        "TEXT NOT NULL DEFAULT 'strength'",
+    )?;
     add_column_if_missing(conn, "exercise_sets", "distance_m", "REAL")?;
     Ok(())
 }
@@ -419,13 +424,17 @@ mod tests {
 
         // Row preserved.
         let cal: i32 = conn
-            .query_row("SELECT calories FROM meal_items WHERE id = 'a'", [], |r| r.get(0))
+            .query_row("SELECT calories FROM meal_items WHERE id = 'a'", [], |r| {
+                r.get(0)
+            })
             .unwrap();
         assert_eq!(cal, 100);
 
         // New columns present.
         let quantity: f64 = conn
-            .query_row("SELECT quantity FROM meal_items WHERE id = 'a'", [], |r| r.get(0))
+            .query_row("SELECT quantity FROM meal_items WHERE id = 'a'", [], |r| {
+                r.get(0)
+            })
             .unwrap();
         assert_eq!(quantity, 1.0);
     }

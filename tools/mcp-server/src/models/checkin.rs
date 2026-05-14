@@ -30,11 +30,11 @@ impl std::fmt::Display for CheckinType {
 pub struct Checkin {
     pub activity_id: Uuid,
     pub checkin_type: CheckinType,
-    pub mood: Option<i32>,           // 1-10
-    pub energy: Option<i32>,         // 1-10
+    pub mood: Option<i32>,   // 1-10
+    pub energy: Option<i32>, // 1-10
     pub sleep_hours: Option<f64>,
-    pub sleep_quality: Option<i32>,  // 1-10
-    pub stress: Option<i32>,         // 1-10
+    pub sleep_quality: Option<i32>, // 1-10
+    pub stress: Option<i32>,        // 1-10
     pub hydration_oz: Option<i32>,
 }
 

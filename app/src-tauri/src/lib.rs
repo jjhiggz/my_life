@@ -1,12 +1,17 @@
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Mutex;
 use std::thread;
 
-use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
-use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
 use chrono::{Datelike, NaiveDate};
+use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use tauri::{AppHandle, Emitter, State};
+
+const AGENT_KEYCHAIN_SERVICE: &str = "higgzlife-agent";
+const AGENT_KEYCHAIN_ACCOUNT: &str = "openai_api_key";
 
 struct PtyState {
     master: Mutex<Option<Box<dyn MasterPty + Send>>>,
@@ -47,6 +52,298 @@ fn agent_cwd() -> PathBuf {
     std::env::var("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("."))
+}
+
+fn higgzlife_dir() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    PathBuf::from(home).join(".higgzlife")
+}
+
+fn agent_settings_path() -> PathBuf {
+    higgzlife_dir().join("agent-settings.json")
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct AgentSettingsFile {
+    provider: String,
+    model: String,
+    endpoint: String,
+}
+
+impl Default for AgentSettingsFile {
+    fn default() -> Self {
+        Self {
+            provider: "openai".to_string(),
+            model: "gpt-5-mini".to_string(),
+            endpoint: "https://api.openai.com/v1/responses".to_string(),
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct AgentSettings {
+    provider: String,
+    model: String,
+    endpoint: String,
+    api_token_configured: bool,
+}
+
+#[derive(Deserialize)]
+struct SaveAgentSettingsInput {
+    provider: String,
+    model: String,
+    endpoint: Option<String>,
+    api_token: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct DraftAgentActionInput {
+    agent_id: Option<String>,
+    instruction: Option<String>,
+    request: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LlmAgentDraft {
+    kind: String,
+    title: Option<String>,
+    summary: Option<String>,
+    starts_at: Option<String>,
+    ends_at: Option<String>,
+    all_day: Option<bool>,
+    location: Option<String>,
+    recurrence_rule: Option<String>,
+    recurrence_until: Option<String>,
+    food_name: Option<String>,
+    quantity: Option<f64>,
+    unit: Option<String>,
+    meal_type: Option<String>,
+    weight_lbs: Option<f64>,
+    body_fat_pct: Option<f64>,
+    notes: Option<String>,
+    confidence: Option<String>,
+}
+
+fn load_agent_settings_file() -> AgentSettingsFile {
+    let path = agent_settings_path();
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|raw| serde_json::from_str::<AgentSettingsFile>(&raw).ok())
+        .unwrap_or_default()
+}
+
+fn save_agent_settings_file(settings: &AgentSettingsFile) -> Result<(), String> {
+    std::fs::create_dir_all(higgzlife_dir()).map_err(|e| e.to_string())?;
+    let raw = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
+    std::fs::write(agent_settings_path(), raw).map_err(|e| e.to_string())
+}
+
+fn keychain_get_token() -> Option<String> {
+    let output = Command::new("security")
+        .args([
+            "find-generic-password",
+            "-a",
+            AGENT_KEYCHAIN_ACCOUNT,
+            "-s",
+            AGENT_KEYCHAIN_SERVICE,
+            "-w",
+        ])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!token.is_empty()).then_some(token)
+}
+
+fn keychain_set_token(token: &str) -> Result<(), String> {
+    let trimmed = token.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+    let _ = Command::new("security")
+        .args([
+            "delete-generic-password",
+            "-a",
+            AGENT_KEYCHAIN_ACCOUNT,
+            "-s",
+            AGENT_KEYCHAIN_SERVICE,
+        ])
+        .output();
+    let output = Command::new("security")
+        .args([
+            "add-generic-password",
+            "-a",
+            AGENT_KEYCHAIN_ACCOUNT,
+            "-s",
+            AGENT_KEYCHAIN_SERVICE,
+            "-w",
+            trimmed,
+            "-U",
+        ])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    }
+}
+
+fn keychain_clear_token() -> Result<(), String> {
+    let output = Command::new("security")
+        .args([
+            "delete-generic-password",
+            "-a",
+            AGENT_KEYCHAIN_ACCOUNT,
+            "-s",
+            AGENT_KEYCHAIN_SERVICE,
+        ])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("could not be found") {
+            Ok(())
+        } else {
+            Err(stderr.trim().to_string())
+        }
+    }
+}
+
+fn agent_api_token() -> Option<String> {
+    keychain_get_token().or_else(|| std::env::var("OPENAI_API_KEY").ok())
+}
+
+#[tauri::command]
+fn get_agent_settings() -> Result<AgentSettings, String> {
+    let settings = load_agent_settings_file();
+    Ok(AgentSettings {
+        provider: settings.provider,
+        model: settings.model,
+        endpoint: settings.endpoint,
+        api_token_configured: agent_api_token().is_some(),
+    })
+}
+
+#[tauri::command]
+fn save_agent_settings(input: SaveAgentSettingsInput) -> Result<AgentSettings, String> {
+    let provider = input.provider.trim().to_lowercase();
+    if provider != "openai" {
+        return Err("Only OpenAI is supported right now.".to_string());
+    }
+    let model = input.model.trim();
+    if model.is_empty() {
+        return Err("Model is required.".to_string());
+    }
+    let endpoint = input
+        .endpoint
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("https://api.openai.com/v1/responses");
+    let settings = AgentSettingsFile {
+        provider,
+        model: model.to_string(),
+        endpoint: endpoint.to_string(),
+    };
+    save_agent_settings_file(&settings)?;
+    if let Some(token) = input.api_token.as_deref() {
+        if !token.trim().is_empty() {
+            keychain_set_token(token)?;
+        }
+    }
+    get_agent_settings()
+}
+
+#[tauri::command]
+fn clear_agent_api_token() -> Result<AgentSettings, String> {
+    keychain_clear_token()?;
+    get_agent_settings()
+}
+
+fn extract_response_text(value: &Value) -> Option<String> {
+    if let Some(text) = value.get("output_text").and_then(Value::as_str) {
+        return Some(text.to_string());
+    }
+    let output = value.get("output")?.as_array()?;
+    let mut chunks = Vec::new();
+    for item in output {
+        if let Some(content) = item.get("content").and_then(Value::as_array) {
+            for part in content {
+                if let Some(text) = part.get("text").and_then(Value::as_str) {
+                    chunks.push(text.to_string());
+                }
+            }
+        }
+    }
+    (!chunks.is_empty()).then(|| chunks.join("\n"))
+}
+
+fn parse_llm_json(raw: &str) -> Result<LlmAgentDraft, String> {
+    let trimmed = raw.trim();
+    let json_text = if let Some(stripped) = trimmed.strip_prefix("```json") {
+        stripped.trim_end_matches("```").trim()
+    } else if let Some(stripped) = trimmed.strip_prefix("```") {
+        stripped.trim_end_matches("```").trim()
+    } else {
+        trimmed
+    };
+    serde_json::from_str::<LlmAgentDraft>(json_text).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn draft_agent_action_with_llm(input: DraftAgentActionInput) -> Result<LlmAgentDraft, String> {
+    let settings = load_agent_settings_file();
+    if settings.provider != "openai" {
+        return Err("Only OpenAI is supported right now.".to_string());
+    }
+    let token = agent_api_token().ok_or_else(|| "Agent API token is not configured.".to_string())?;
+    let agent_context = input
+        .instruction
+        .as_deref()
+        .unwrap_or("Map the request to one HiggzLife app action.");
+    let system = r#"You convert a HiggzLife user request into exactly one safe typed action.
+Return JSON only. Do not include markdown.
+Supported kinds:
+- create_calendar_event: title, startsAt (YYYY-MM-DD or ISO datetime), optional endsAt, allDay, location, recurrenceRule (daily|weekly|monthly|yearly), recurrenceUntil, notes.
+- log_food: foodName, optional quantity, optional unit (g|serving|count), optional mealType (breakfast|lunch|dinner|snack), notes.
+- log_weight: weightLbs, optional bodyFatPct, notes.
+- unknown: summary.
+Use unknown if title, date/time, food identity, quantity, or weight is too ambiguous.
+For birthdays and anniversaries, set recurrenceRule to yearly unless the user clearly says not to.
+Use confidence as high, medium, or low."#;
+    let body = serde_json::json!({
+        "model": settings.model,
+        "instructions": system,
+        "input": format!(
+            "Agent id: {}\nAgent instruction:\n{}\n\nUser request:\n{}",
+            input.agent_id.unwrap_or_else(|| "unknown".to_string()),
+            agent_context,
+            input.request.trim()
+        ),
+        "max_output_tokens": 500,
+        "store": false
+    });
+    let response = reqwest::Client::new()
+        .post(settings.endpoint)
+        .bearer_auth(token)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let status = response.status();
+    let text = response.text().await.map_err(|e| e.to_string())?;
+    if !status.is_success() {
+        return Err(format!("Agent API request failed: {}", text));
+    }
+    let value: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    let output = extract_response_text(&value).ok_or_else(|| "No text output from agent API.".to_string())?;
+    parse_llm_json(&output)
 }
 
 #[tauri::command]
@@ -106,8 +403,12 @@ fn pty_open(
 fn pty_write(state: State<'_, PtyState>, data: String) -> Result<(), String> {
     let mut guard = state.writer.lock().unwrap();
     if let Some(writer) = guard.as_mut() {
-        writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
+        writer
+            .write_all(data.as_bytes())
+            .map_err(|e| e.to_string())?;
         writer.flush().map_err(|e| e.to_string())?;
+    } else {
+        return Err("Agent runtime is not open yet".to_string());
     }
     Ok(())
 }
@@ -213,7 +514,9 @@ fn journal_editor_pty_write(
 ) -> Result<(), String> {
     let mut guard = state.writer.lock().unwrap();
     if let Some(writer) = guard.as_mut() {
-        writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
+        writer
+            .write_all(data.as_bytes())
+            .map_err(|e| e.to_string())?;
         writer.flush().map_err(|e| e.to_string())?;
     }
     Ok(())
@@ -315,9 +618,7 @@ struct ServingRow {
 #[tauri::command]
 fn list_food_for_date(date: Option<String>) -> Result<TodayFood, String> {
     let conn = open_db()?;
-    let today = date.unwrap_or_else(|| {
-        chrono::Local::now().format("%Y-%m-%d").to_string()
-    });
+    let today = date.unwrap_or_else(|| chrono::Local::now().format("%Y-%m-%d").to_string());
 
     let mut stmt = conn
         .prepare(
@@ -330,7 +631,15 @@ fn list_food_for_date(date: Option<String>) -> Result<TodayFood, String> {
         )
         .map_err(|e| e.to_string())?;
 
-    let meal_rows: Vec<(String, String, String, Option<i32>, Option<f64>, Option<f64>, Option<f64>)> = stmt
+    let meal_rows: Vec<(
+        String,
+        String,
+        String,
+        Option<i32>,
+        Option<f64>,
+        Option<f64>,
+        Option<f64>,
+    )> = stmt
         .query_map([&today], |row| {
             Ok((
                 row.get(0)?,
@@ -467,7 +776,11 @@ fn log_quick_add(
     let fat = s_fat.map(|f| f * qty);
 
     let food_display: String = tx
-        .query_row("SELECT display_name FROM foods WHERE id = ?1", [&food_id], |r| r.get(0))
+        .query_row(
+            "SELECT display_name FROM foods WHERE id = ?1",
+            [&food_id],
+            |r| r.get(0),
+        )
         .map_err(|e| e.to_string())?;
 
     let mt = meal_type.unwrap_or_else(|| current_meal_type().to_string());
@@ -542,10 +855,7 @@ fn log_quick_add(
     Ok(())
 }
 
-fn recompute_meal_totals(
-    conn: &rusqlite::Connection,
-    meal_id: &str,
-) -> rusqlite::Result<()> {
+fn recompute_meal_totals(conn: &rusqlite::Connection, meal_id: &str) -> rusqlite::Result<()> {
     conn.execute(
         "UPDATE meals SET
             total_calories = COALESCE((SELECT SUM(calories) FROM meal_items WHERE meal_id = ?1), 0),
@@ -561,11 +871,7 @@ fn recompute_meal_totals(
 /// Edit a meal item — change its serving and/or quantity. Recomputes
 /// calories/protein/carbs/fat from the new (serving × quantity).
 #[tauri::command]
-fn update_meal_item(
-    item_id: String,
-    serving_id: String,
-    quantity: f64,
-) -> Result<(), String> {
+fn update_meal_item(item_id: String, serving_id: String, quantity: f64) -> Result<(), String> {
     let mut conn = open_db()?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
@@ -959,9 +1265,11 @@ fn apply_meal_template(template_id: String, meal_type: Option<String>) -> Result
         let fat = s_fat.map(|f| f * qty);
 
         let food_display: String = tx
-            .query_row("SELECT display_name FROM foods WHERE id = ?1", [&food_id], |r| {
-                r.get(0)
-            })
+            .query_row(
+                "SELECT display_name FROM foods WHERE id = ?1",
+                [&food_id],
+                |r| r.get(0),
+            )
             .map_err(|e| e.to_string())?;
 
         let item_id = uuid::Uuid::new_v4().to_string();
@@ -1218,11 +1526,7 @@ fn food_week_insights(start_date: String) -> Result<PeriodInsights, String> {
     // Sunday-start, 7 days. start_date is the Sunday.
     let conn = open_db()?;
     let end: String = conn
-        .query_row(
-            "SELECT date(?1, '+6 days')",
-            [&start_date],
-            |r| r.get(0),
-        )
+        .query_row("SELECT date(?1, '+6 days')", [&start_date], |r| r.get(0))
         .map_err(|e| e.to_string())?;
     period_insights_for_range(&start_date, &end, "this week")
 }
@@ -1286,8 +1590,8 @@ fn restore_meal_item(
 #[tauri::command]
 fn list_food_week(start_date: String) -> Result<Vec<DaySummary>, String> {
     let conn = open_db()?;
-    let start = chrono::NaiveDate::parse_from_str(&start_date, "%Y-%m-%d")
-        .map_err(|e| e.to_string())?;
+    let start =
+        chrono::NaiveDate::parse_from_str(&start_date, "%Y-%m-%d").map_err(|e| e.to_string())?;
 
     let mut out = Vec::with_capacity(7);
     for offset in 0..7 {
@@ -1644,7 +1948,11 @@ fn create_journal_log_activity(
     let conn = open_db()?;
     let activity_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Local::now().to_rfc3339();
-    let title = format!("{} journal updated: {}", humanize_activity_type(interval), key);
+    let title = format!(
+        "{} journal updated: {}",
+        humanize_activity_type(interval),
+        key
+    );
     let notes = format!(
         "Journal file: {}\n\n{}",
         path.to_string_lossy(),
@@ -1732,7 +2040,11 @@ fn list_journal_entries(interval: String) -> Result<Vec<JournalEntrySummary>, St
         if path.extension().and_then(|e| e.to_str()) != Some("md") {
             continue;
         }
-        let Some(key) = path.file_stem().and_then(|s| s.to_str()).map(str::to_string) else {
+        let Some(key) = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map(str::to_string)
+        else {
             continue;
         };
         let updated_at = path
@@ -1988,7 +2300,10 @@ fn create_calendar_event(input: NewCalendarEvent) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn list_calendar_events(from_date: Option<String>, to_date: Option<String>) -> Result<Vec<CalendarEvent>, String> {
+fn list_calendar_events(
+    from_date: Option<String>,
+    to_date: Option<String>,
+) -> Result<Vec<CalendarEvent>, String> {
     let conn = open_db()?;
     let from = from_date.unwrap_or_else(|| chrono::Local::now().date_naive().to_string());
     let to = to_date.unwrap_or_else(|| {
@@ -2033,6 +2348,23 @@ fn list_calendar_events(from_date: Option<String>, to_date: Option<String>) -> R
     }
     expanded.sort_by(|a, b| a.starts_at.cmp(&b.starts_at));
     Ok(expanded)
+}
+
+#[tauri::command]
+fn delete_calendar_event(activity_id: String) -> Result<(), String> {
+    let conn = open_db()?;
+    let changed = conn
+        .execute(
+            "UPDATE activities
+             SET status = 'skipped', updated_at = ?2
+             WHERE id = ?1 AND activity_type = 'calendar_event'",
+            rusqlite::params![&activity_id, chrono::Local::now().to_rfc3339()],
+        )
+        .map_err(|e| e.to_string())?;
+    if changed == 0 {
+        return Err("Calendar event not found".to_string());
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -2232,11 +2564,7 @@ fn spawn_terminal_editor(editor: &str, path: &std::path::Path) -> Result<(), Str
     Ok(())
 }
 
-fn extract_from_log(
-    date: &str,
-    doc: &serde_yaml::Value,
-    out: &mut Vec<ActivityCard>,
-) {
+fn extract_from_log(date: &str, doc: &serde_yaml::Value, out: &mut Vec<ActivityCard>) {
     // Workouts are now stored in the DB (workouts/exercises/exercise_sets)
     // and emitted as cards in `list_logged_activities`, not here. The
     // yaml `workout:` block is the source for the one-shot importer
@@ -2293,7 +2621,13 @@ fn extract_from_log(
 
 fn slug(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
         .collect::<String>()
         .trim_matches('-')
         .to_string()
@@ -2764,11 +3098,7 @@ fn workout_day_stats(date: String) -> Result<WorkoutStats, String> {
 fn workout_week_stats(start_date: String) -> Result<WorkoutStats, String> {
     let conn = open_db()?;
     let end: String = conn
-        .query_row(
-            "SELECT date(?1, '+6 days')",
-            [&start_date],
-            |r| r.get(0),
-        )
+        .query_row("SELECT date(?1, '+6 days')", [&start_date], |r| r.get(0))
         .map_err(|e| e.to_string())?;
     workout_stats_for_range(&start_date, &end, "this week")
 }
@@ -2825,10 +3155,7 @@ fn list_exercises(
 }
 
 #[tauri::command]
-fn search_exercises(
-    query: String,
-    limit: Option<i32>,
-) -> Result<Vec<ExerciseLibraryRow>, String> {
+fn search_exercises(query: String, limit: Option<i32>) -> Result<Vec<ExerciseLibraryRow>, String> {
     let conn = open_db()?;
     let pat = format!("%{}%", query.to_lowercase());
     let lim = limit.unwrap_or(15);
@@ -3205,8 +3532,7 @@ fn list_plan_for_date(date: String) -> Result<DailyPlan, String> {
             file_exists: false,
         });
     }
-    let content = std::fs::read_to_string(&path)
-        .map_err(|e| format!("read {:?}: {}", path, e))?;
+    let content = std::fs::read_to_string(&path).map_err(|e| format!("read {:?}: {}", path, e))?;
     let (fm_str, body) = split_frontmatter(&content);
     let frontmatter: PlanFrontmatter = match fm_str {
         Some(s) => serde_yaml::from_str(s).map_err(|e| format!("frontmatter parse: {}", e))?,
@@ -3353,14 +3679,8 @@ fn read_activity_row(conn: &rusqlite::Connection, id: &str) -> Result<ActivityRo
 }
 
 fn read_meal_detail(conn: &rusqlite::Connection, id: &str) -> Result<LoggedMealDetail, String> {
-    let (meal_type, tc, tp, tcr, tf): (
-        String,
-        Option<i32>,
-        Option<f64>,
-        Option<f64>,
-        Option<f64>,
-    ) = conn
-        .query_row(
+    let (meal_type, tc, tp, tcr, tf): (String, Option<i32>, Option<f64>, Option<f64>, Option<f64>) =
+        conn.query_row(
             "SELECT meal_type, total_calories, total_protein_g, total_carbs_g, total_fat_g
              FROM meals WHERE activity_id = ?1",
             [id],
@@ -3683,6 +4003,10 @@ pub fn run() {
             pty_open,
             pty_write,
             pty_resize,
+            get_agent_settings,
+            save_agent_settings,
+            clear_agent_api_token,
+            draft_agent_action_with_llm,
             journal_editor_pty_open,
             journal_editor_pty_write,
             journal_editor_pty_resize,
@@ -3725,6 +4049,7 @@ pub fn run() {
             log_weight_activity,
             create_calendar_event,
             list_calendar_events,
+            delete_calendar_event,
             list_journal_entries,
             read_journal_entry,
             open_journal_entry,

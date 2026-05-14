@@ -66,6 +66,7 @@ dependencies = [
  "chrono",
  "higgzlife-db",
  "portable-pty",
+ "reqwest 0.12.28",
  "rusqlite",
  "sentry",
  "serde",

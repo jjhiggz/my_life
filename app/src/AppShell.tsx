@@ -17,9 +17,10 @@ import {
   SidebarTrigger,
   sidebarMenuButtonVariants,
 } from "~/components/ui/sidebar";
-import TerminalView from "./Terminal";
 import ActionPalette from "./components/ActionPalette";
+import AgentWorkspace from "./components/AgentWorkspace";
 import CommandPalette, { PaletteMode } from "./components/CommandPalette";
+import TerminalView from "./Terminal";
 
 type NavItem = { href: string; label: string; icon: string; end?: boolean };
 
@@ -140,13 +141,16 @@ const AppShell: ParentComponent = (props) => {
           <div class="text-sm font-medium text-foreground/80">{currentLabel()}</div>
         </header>
         <div
-          class="flex flex-1 overflow-hidden"
+          class="flex min-h-0 flex-1 overflow-hidden bg-background"
           style={{ display: onAgent() ? "flex" : "none" }}
         >
-          <TerminalView />
+          <AgentWorkspace />
         </div>
         {!onAgent() && <div class="min-w-0 flex-1 overflow-auto">{props.children}</div>}
       </SidebarInset>
+      <div class="pointer-events-none fixed -left-[10000px] top-0 h-[360px] w-[640px] opacity-0">
+        <TerminalView />
+      </div>
       <CommandPalette
         mode={paletteMode()}
         open={paletteOpen()}
@@ -156,7 +160,9 @@ const AppShell: ParentComponent = (props) => {
       />
       <ActionPalette
         open={actionPaletteOpen()}
+        currentPath={loc.pathname}
         onOpenChange={setActionPaletteOpen}
+        onViewAgent={() => navigate("/")}
       />
     </SidebarProvider>
   );
