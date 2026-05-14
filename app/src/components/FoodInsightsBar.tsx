@@ -10,6 +10,8 @@ type DayInsights = {
   carbs_g: number;
   fat_g: number;
   cal_target: number;
+  base_cal_target: number;
+  exercise_calories: number;
   protein_target: number;
 };
 
@@ -65,7 +67,11 @@ function DayInsightsBar(props: { date: string }) {
         <InsightCard
           label="Calories"
           value={String(data()!.calories)}
-          hint={`/ ${data()!.cal_target} target`}
+          hint={
+            data()!.exercise_calories > 0
+              ? `/ ${data()!.cal_target} target (${data()!.base_cal_target} + ${data()!.exercise_calories})`
+              : `/ ${data()!.cal_target} target`
+          }
           tone={
             data()!.calories === 0
               ? "neutral"

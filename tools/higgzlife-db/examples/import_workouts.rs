@@ -148,7 +148,7 @@ fn import_workout(
 
     let kind = classify_workout_kind(w);
     let modality = if kind == "cardio" {
-        w.workout_type.clone()
+        normalize_cardio_modality(w.workout_type.as_deref())
     } else {
         None
     };
@@ -226,6 +226,8 @@ fn classify_workout_kind(w: &WorkoutBlock) -> String {
         "mobility".into()
     } else if t.contains("cardio")
         || t.contains("bike")
+        || t.contains("cycle")
+        || t.contains("cycling")
         || t.contains("run")
         || t.contains("swim")
         || t.contains("row")
@@ -236,6 +238,25 @@ fn classify_workout_kind(w: &WorkoutBlock) -> String {
         "strength".into() // default for workouts with exercises
     } else {
         "mixed".into()
+    }
+}
+
+fn normalize_cardio_modality(workout_type: Option<&str>) -> Option<String> {
+    let t = workout_type?.to_lowercase();
+    if t.contains("bike") || t.contains("cycle") || t.contains("cycling") {
+        Some("bike".into())
+    } else if t.contains("run") {
+        Some("run".into())
+    } else if t.contains("swim") {
+        Some("swim".into())
+    } else if t.contains("row") {
+        Some("row".into())
+    } else if t.contains("hike") {
+        Some("hike".into())
+    } else if t.contains("walk") {
+        Some("walk".into())
+    } else {
+        workout_type.map(str::to_string)
     }
 }
 

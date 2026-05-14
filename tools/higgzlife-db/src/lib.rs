@@ -96,6 +96,14 @@ pub fn migrate(conn: &mut Connection) -> Result<()> {
         tx.commit()?;
         eprintln!("higgzlife-db: applied migration {} ({})", m.version, m.name);
     }
+    apply_idempotent_schema_guards(conn)?;
+    Ok(())
+}
+
+fn apply_idempotent_schema_guards(conn: &Connection) -> Result<()> {
+    m001_add_meal_items_food_columns(conn)?;
+    m003_add_columns(conn)?;
+    m006_add_calendar_recurrence_columns(conn)?;
     Ok(())
 }
 
@@ -222,6 +230,7 @@ fn m003_add_columns(conn: &Connection) -> Result<()> {
     add_column_if_missing(conn, "workouts", "distance_m", "REAL")?;
     add_column_if_missing(conn, "workouts", "elevation_m", "REAL")?;
     add_column_if_missing(conn, "workouts", "avg_hr", "INTEGER")?;
+    add_column_if_missing(conn, "workouts", "calories_burned", "REAL")?;
     add_column_if_missing(
         conn,
         "exercises",
@@ -368,7 +377,14 @@ mod tests {
             .unwrap()
             .filter_map(|r| r.ok())
             .collect();
-        for col in ["kind", "modality", "distance_m", "elevation_m", "avg_hr"] {
+        for col in [
+            "kind",
+            "modality",
+            "distance_m",
+            "elevation_m",
+            "avg_hr",
+            "calories_burned",
+        ] {
             assert!(
                 workout_cols.iter().any(|c| c == col),
                 "workouts.{} missing",

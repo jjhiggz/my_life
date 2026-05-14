@@ -49,6 +49,8 @@ type DailyTotals = {
   carbs_g: number;
   fat_g: number;
   calorie_target: number;
+  base_calorie_target: number;
+  exercise_calories: number;
   protein_target_g: number;
 };
 
@@ -592,13 +594,19 @@ export default function Food() {
         {/* Top progress strip */}
         <div class="food-totals">
           <div class="boost-row">
+            <Show when={(dayData()?.totals.exercise_calories ?? 0) > 0}>
+              <span class="muted small">
+                {dayData()?.totals.base_calorie_target ?? 2200} base +{" "}
+                {dayData()?.totals.exercise_calories} workout cal
+              </span>
+            </Show>
             <Button
               variant={boosted() ? "default" : "outline"}
               size="sm"
               onClick={toggleBoost}
               class="h-7 text-xs"
             >
-              {boosted() ? "✓ Workout day" : "Workout day"}
+              {boosted() ? "Manual boost on" : "Manual boost"}
             </Button>
             <Show when={boosted()}>
               <span class="muted small">

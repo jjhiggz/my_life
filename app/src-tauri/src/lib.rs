@@ -297,12 +297,15 @@ fn parse_llm_json(raw: &str) -> Result<LlmAgentDraft, String> {
 }
 
 #[tauri::command]
-async fn draft_agent_action_with_llm(input: DraftAgentActionInput) -> Result<LlmAgentDraft, String> {
+async fn draft_agent_action_with_llm(
+    input: DraftAgentActionInput,
+) -> Result<LlmAgentDraft, String> {
     let settings = load_agent_settings_file();
     if settings.provider != "openai" {
         return Err("Only OpenAI is supported right now.".to_string());
     }
-    let token = agent_api_token().ok_or_else(|| "Agent API token is not configured.".to_string())?;
+    let token =
+        agent_api_token().ok_or_else(|| "Agent API token is not configured.".to_string())?;
     let agent_context = input
         .instruction
         .as_deref()
@@ -342,7 +345,8 @@ Use confidence as high, medium, or low."#;
         return Err(format!("Agent API request failed: {}", text));
     }
     let value: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
-    let output = extract_response_text(&value).ok_or_else(|| "No text output from agent API.".to_string())?;
+    let output = extract_response_text(&value)
+        .ok_or_else(|| "No text output from agent API.".to_string())?;
     parse_llm_json(&output)
 }
 
@@ -558,6 +562,143 @@ fn open_db() -> Result<rusqlite::Connection, String> {
     higgzlife_db::open_and_migrate(db_path()).map_err(|e| e.to_string())
 }
 
+fn number_after_marker(text: &str, marker: &str) -> Option<f64> {
+    let lower = text.to_lowercase();
+    let marker_at = lower.find(marker)?;
+    let tail = &text[marker_at + marker.len()..];
+    let mut seen_digit = false;
+    let mut buf = String::new();
+    for ch in tail.chars() {
+        if ch.is_ascii_digit() || (ch == '.' && seen_digit) {
+            seen_digit = true;
+            buf.push(ch);
+        } else if seen_digit {
+            break;
+        }
+    }
+    buf.parse::<f64>().ok()
+}
+
+fn number_before_marker(text: &str, marker: &str) -> Option<f64> {
+    let lower = text.to_lowercase();
+    let marker_at = lower.find(marker)?;
+    let head = &text[..marker_at];
+    let mut digits = String::new();
+    for ch in head.chars().rev() {
+        if ch.is_ascii_digit() || ch == '.' {
+            digits.push(ch);
+        } else if !digits.is_empty() {
+            break;
+        }
+    }
+    if digits.is_empty() {
+        return None;
+    }
+    digits.chars().rev().collect::<String>().parse::<f64>().ok()
+}
+
+fn parse_logged_calories(text: &str) -> Option<f64> {
+    number_after_marker(text, "calories")
+        .or_else(|| number_before_marker(text, "kcal"))
+        .or_else(|| number_before_marker(text, " cal"))
+}
+
+fn workout_note_calories(conn: &rusqlite::Connection, workout_id: &str) -> f64 {
+    let activity_notes = conn
+        .query_row(
+            "SELECT notes FROM activities WHERE id = ?1",
+            [workout_id],
+            |r| r.get::<_, Option<String>>(0),
+        )
+        .ok()
+        .flatten()
+        .and_then(|notes| parse_logged_calories(&notes));
+    if let Some(calories) = activity_notes {
+        return calories;
+    }
+
+    conn.prepare(
+        "SELECT e.notes, s.notes
+         FROM exercises e
+         LEFT JOIN exercise_sets s ON s.exercise_id = e.id
+         WHERE e.workout_id = ?1",
+    )
+    .ok()
+    .and_then(|mut stmt| {
+        let rows = stmt
+            .query_map([workout_id], |r| {
+                Ok((
+                    r.get::<_, Option<String>>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                ))
+            })
+            .ok()?;
+        let mut total = 0.0;
+        for row in rows.flatten() {
+            if let Some(calories) = row.0.as_deref().and_then(parse_logged_calories) {
+                total += calories;
+            }
+            if let Some(calories) = row.1.as_deref().and_then(parse_logged_calories) {
+                total += calories;
+            }
+        }
+        Some(total)
+    })
+    .unwrap_or(0.0)
+}
+
+fn workout_calories_for_range(
+    conn: &rusqlite::Connection,
+    start_date: &str,
+    end_date: &str,
+) -> Result<f64, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT a.id, w.calories_burned, w.kind, w.workout_type, w.modality,
+                    COALESCE(w.duration_min, 0)
+             FROM workouts w
+             JOIN activities a ON a.id = w.activity_id
+             WHERE date(a.created_at) >= ?1 AND date(a.created_at) <= ?2",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows: Vec<(
+        String,
+        Option<f64>,
+        Option<String>,
+        String,
+        Option<String>,
+        i32,
+    )> = stmt
+        .query_map(rusqlite::params![start_date, end_date], |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    let weight_kg = profile_weight_lbs() * 0.453_592_37;
+    Ok(rows
+        .iter()
+        .map(|(id, logged, kind, workout_type, modality, duration_min)| {
+            let explicit = logged.unwrap_or_else(|| workout_note_calories(conn, id));
+            if explicit > 0.0 {
+                explicit
+            } else if *duration_min > 0 {
+                let met = workout_met(kind.as_deref(), workout_type, modality.as_deref());
+                met * weight_kg * (*duration_min as f64 / 60.0)
+            } else {
+                0.0
+            }
+        })
+        .sum())
+}
+
 #[derive(Serialize)]
 struct LoggedMeal {
     activity_id: String,
@@ -589,6 +730,8 @@ struct DailyTotals {
     carbs_g: f64,
     fat_g: f64,
     calorie_target: i32,
+    base_calorie_target: i32,
+    exercise_calories: i32,
     protein_target_g: f64,
 }
 
@@ -700,6 +843,8 @@ fn list_food_for_date(date: Option<String>) -> Result<TodayFood, String> {
     let total_cal: i32 = meals.iter().filter_map(|m| m.total_calories).sum();
     let total_p: f64 = meals.iter().filter_map(|m| m.total_protein_g).sum();
 
+    let exercise_calories = workout_calories_for_range(&conn, &today, &today)?.round() as i32;
+
     Ok(TodayFood {
         date: today,
         totals: DailyTotals {
@@ -707,7 +852,9 @@ fn list_food_for_date(date: Option<String>) -> Result<TodayFood, String> {
             protein_g: total_p,
             carbs_g: total_carbs,
             fat_g: total_fat,
-            calorie_target: 2200,
+            calorie_target: 2200 + exercise_calories,
+            base_calorie_target: 2200,
+            exercise_calories,
             protein_target_g: 150.0,
         },
         meals,
@@ -1360,6 +1507,8 @@ struct DayInsights {
     carbs_g: f64,
     fat_g: f64,
     cal_target: i32,
+    base_cal_target: i32,
+    exercise_calories: i32,
     protein_target: f64,
 }
 
@@ -1409,6 +1558,8 @@ fn food_day_insights(date: Option<String>) -> Result<DayInsights, String> {
         )
         .map_err(|e| e.to_string())?;
 
+    let exercise_calories = workout_calories_for_range(&conn, &date, &date)?.round() as i32;
+
     Ok(DayInsights {
         date,
         has_data: has,
@@ -1416,7 +1567,9 @@ fn food_day_insights(date: Option<String>) -> Result<DayInsights, String> {
         protein_g: p,
         carbs_g: c,
         fat_g: f,
-        cal_target: CAL_TARGET,
+        cal_target: CAL_TARGET + exercise_calories,
+        base_cal_target: CAL_TARGET,
+        exercise_calories,
         protein_target: PROTEIN_TARGET,
     })
 }
@@ -2671,6 +2824,7 @@ struct LoggedWorkout {
     distance_m: Option<f64>,
     elevation_m: Option<f64>,
     avg_hr: Option<i32>,
+    calories_burned: Option<f64>,
     energy_before: Option<i32>,
     energy_after: Option<i32>,
     location: Option<String>,
@@ -2733,8 +2887,10 @@ struct WorkoutStats {
     strength_sets: i32,
     total_volume_lbs: f64,
     cardio_distance_m: f64,
+    calories_burned: i32,
     estimated_calories: i32,
     avg_calories_per_workout: f64,
+    estimated_calories_fallback: i32,
     top_kind: Option<TopWorkoutKind>,
 }
 
@@ -2742,27 +2898,38 @@ fn read_workout(conn: &rusqlite::Connection, activity_id: &str) -> Result<Logged
     let w = conn
         .query_row(
             "SELECT a.id, a.created_at, w.workout_type, w.kind, w.modality, w.duration_min,
-                    w.distance_m, w.elevation_m, w.avg_hr, w.energy_before, w.energy_after,
+                    w.distance_m, w.elevation_m, w.avg_hr, w.calories_burned, w.energy_before, w.energy_after,
                     w.location, a.title, a.notes
              FROM workouts w JOIN activities a ON a.id = w.activity_id
              WHERE a.id = ?1",
             [activity_id],
             |r| {
+                let kind: Option<String> = r.get(3)?;
+                let modality: Option<String> = r.get(4)?;
+                let workout_type: String = r.get(2)?;
+                let inferred_kind =
+                    inferred_workout_kind(kind.as_deref(), &workout_type, modality.as_deref());
+                let inferred_modality = if inferred_kind == "cardio" {
+                    inferred_cardio_modality(&workout_type, modality.as_deref())
+                } else {
+                    modality
+                };
                 Ok(LoggedWorkout {
                     activity_id: r.get(0)?,
                     created_at: r.get(1)?,
-                    workout_type: r.get(2)?,
-                    kind: r.get(3)?,
-                    modality: r.get(4)?,
+                    workout_type,
+                    kind: Some(inferred_kind),
+                    modality: inferred_modality,
                     duration_min: r.get(5)?,
                     distance_m: r.get(6)?,
                     elevation_m: r.get(7)?,
                     avg_hr: r.get(8)?,
-                    energy_before: r.get(9)?,
-                    energy_after: r.get(10)?,
-                    location: r.get(11)?,
-                    title: r.get(12)?,
-                    notes: r.get(13)?,
+                    calories_burned: r.get(9)?,
+                    energy_before: r.get(10)?,
+                    energy_after: r.get(11)?,
+                    location: r.get(12)?,
+                    title: r.get(13)?,
+                    notes: r.get(14)?,
                     exercises: Vec::new(),
                 })
             },
@@ -2770,6 +2937,12 @@ fn read_workout(conn: &rusqlite::Connection, activity_id: &str) -> Result<Logged
         .map_err(|e| e.to_string())?;
 
     let mut workout = w;
+    if workout.calories_burned.is_none() {
+        let note_calories = workout_note_calories(conn, activity_id);
+        if note_calories > 0.0 {
+            workout.calories_burned = Some(note_calories);
+        }
+    }
     let mut ex_stmt = conn
         .prepare(
             "SELECT id, exercise_name, exercise_order, kind, exercise_lib_id, notes
@@ -2939,7 +3112,7 @@ fn workout_met(kind: Option<&str>, workout_type: &str, modality: Option<&str>) -
         Some("mobility") => 2.5,
         Some("sport") => 6.0,
         Some("cardio") => match modality.unwrap_or(workout_type) {
-            "bike" => 6.8,
+            "bike" | "cycling" | "cycle" => 6.8,
             "run" => 9.0,
             "swim" => 6.0,
             "row" => 7.0,
@@ -2948,6 +3121,62 @@ fn workout_met(kind: Option<&str>, workout_type: &str, modality: Option<&str>) -
             _ => 5.0,
         },
         _ => 4.0,
+    }
+}
+
+fn inferred_workout_kind(kind: Option<&str>, workout_type: &str, modality: Option<&str>) -> String {
+    let kind = kind.filter(|k| !k.trim().is_empty());
+    if let Some(kind) = kind {
+        return kind.to_string();
+    }
+    let workout_type = workout_type.to_lowercase();
+    let modality = modality.unwrap_or("").to_lowercase();
+    let haystack = format!("{} {}", workout_type, modality);
+    if haystack.contains("cardio")
+        || haystack.contains("bike")
+        || haystack.contains("cycle")
+        || haystack.contains("cycling")
+        || haystack.contains("run")
+        || haystack.contains("swim")
+        || haystack.contains("row")
+        || haystack.contains("hike")
+        || haystack.contains("walk")
+    {
+        "cardio".to_string()
+    } else if haystack.contains("yoga")
+        || haystack.contains("mobility")
+        || haystack.contains("stretch")
+    {
+        "mobility".to_string()
+    } else if haystack.contains("strength") || haystack.contains("lift") {
+        "strength".to_string()
+    } else {
+        "mixed".to_string()
+    }
+}
+
+fn inferred_cardio_modality(workout_type: &str, modality: Option<&str>) -> Option<String> {
+    if let Some(modality) = modality.filter(|m| !m.trim().is_empty()) {
+        return Some(modality.to_string());
+    }
+    let workout_type = workout_type.to_lowercase();
+    if workout_type.contains("bike")
+        || workout_type.contains("cycle")
+        || workout_type.contains("cycling")
+    {
+        Some("bike".to_string())
+    } else if workout_type.contains("run") {
+        Some("run".to_string())
+    } else if workout_type.contains("swim") {
+        Some("swim".to_string())
+    } else if workout_type.contains("row") {
+        Some("row".to_string())
+    } else if workout_type.contains("hike") {
+        Some("hike".to_string())
+    } else if workout_type.contains("walk") {
+        Some("walk".to_string())
+    } else {
+        None
     }
 }
 
@@ -2977,7 +3206,7 @@ fn workout_stats_for_range(
     let mut stmt = conn
         .prepare(
             "SELECT a.id, date(a.created_at), w.kind, w.workout_type, w.modality,
-                    COALESCE(w.duration_min, 0), COALESCE(w.distance_m, 0)
+                    COALESCE(w.duration_min, 0), COALESCE(w.distance_m, 0), w.calories_burned
              FROM workouts w
              JOIN activities a ON a.id = w.activity_id
              WHERE date(a.created_at) >= ?1 AND date(a.created_at) <= ?2
@@ -2993,6 +3222,7 @@ fn workout_stats_for_range(
         Option<String>,
         i32,
         f64,
+        Option<f64>,
     )> = stmt
         .query_map(rusqlite::params![start_date, end_date], |r| {
             Ok((
@@ -3003,6 +3233,7 @@ fn workout_stats_for_range(
                 r.get(4)?,
                 r.get(5)?,
                 r.get(6)?,
+                r.get(7)?,
             ))
         })
         .map_err(|e| e.to_string())?
@@ -3017,15 +3248,19 @@ fn workout_stats_for_range(
     let mut other_min = 0;
     let mut cardio_distance_m = 0.0;
     let mut estimated_calories = 0.0;
+    let mut logged_calories = 0.0;
+    let mut total_calories = 0.0;
 
-    for (_, date, kind, workout_type, modality, duration_min, distance_m) in &rows {
+    for (id, date, kind, workout_type, modality, duration_min, distance_m, calories_burned) in &rows
+    {
         days.insert(date.clone());
         total_duration_min += *duration_min;
 
-        let normalized_kind = kind.as_deref().unwrap_or(workout_type.as_str());
+        let normalized_kind =
+            inferred_workout_kind(kind.as_deref(), workout_type, modality.as_deref());
         *kind_counts.entry(normalized_kind.to_string()).or_insert(0) += 1;
 
-        match normalized_kind {
+        match normalized_kind.as_str() {
             "cardio" => {
                 cardio_min += *duration_min;
                 cardio_distance_m += *distance_m;
@@ -3034,9 +3269,18 @@ fn workout_stats_for_range(
             _ => other_min += *duration_min,
         }
 
+        let mut estimate = 0.0;
         if *duration_min > 0 {
             let met = workout_met(kind.as_deref(), workout_type, modality.as_deref());
-            estimated_calories += met * weight_kg * (*duration_min as f64 / 60.0);
+            estimate = met * weight_kg * (*duration_min as f64 / 60.0);
+            estimated_calories += estimate;
+        }
+        let explicit = calories_burned.unwrap_or_else(|| workout_note_calories(&conn, id));
+        if explicit > 0.0 {
+            logged_calories += explicit;
+            total_calories += explicit;
+        } else {
+            total_calories += estimate;
         }
     }
 
@@ -3079,12 +3323,14 @@ fn workout_stats_for_range(
         strength_sets,
         total_volume_lbs,
         cardio_distance_m,
-        estimated_calories: estimated_calories.round() as i32,
+        calories_burned: logged_calories.round() as i32,
+        estimated_calories: total_calories.round() as i32,
         avg_calories_per_workout: if workout_count > 0 {
-            estimated_calories / workout_count as f64
+            total_calories / workout_count as f64
         } else {
             0.0
         },
+        estimated_calories_fallback: estimated_calories.round() as i32,
         top_kind,
     })
 }
@@ -3410,6 +3656,7 @@ fn log_cardio_workout(
     distance_m: Option<f64>,
     elevation_m: Option<f64>,
     avg_hr: Option<i32>,
+    calories_burned: Option<f64>,
     energy_before: Option<i32>,
     energy_after: Option<i32>,
     location: Option<String>,
@@ -3426,9 +3673,9 @@ fn log_cardio_workout(
     .map_err(|e| e.to_string())?;
     conn.execute(
         "INSERT INTO workouts (activity_id, workout_type, kind, modality,
-                               duration_min, distance_m, elevation_m, avg_hr,
+                               duration_min, distance_m, elevation_m, avg_hr, calories_burned,
                                energy_before, energy_after, location)
-         VALUES (?1, 'cardio', 'cardio', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+         VALUES (?1, 'cardio', 'cardio', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         rusqlite::params![
             &activity_id,
             &modality,
@@ -3436,6 +3683,7 @@ fn log_cardio_workout(
             &distance_m,
             &elevation_m,
             &avg_hr,
+            &calories_burned,
             &energy_before,
             &energy_after,
             &location,

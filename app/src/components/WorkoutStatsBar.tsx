@@ -18,8 +18,10 @@ type WorkoutStats = {
   strength_sets: number;
   total_volume_lbs: number;
   cardio_distance_m: number;
+  calories_burned: number;
   estimated_calories: number;
   avg_calories_per_workout: number;
+  estimated_calories_fallback: number;
   top_kind: TopWorkoutKind | null;
 };
 
@@ -92,14 +94,22 @@ export default function WorkoutStatsBar(props: {
     () => periodKey(props),
     () => fetchStats(props),
   );
+  const hasLoggedCalories = () => (stats()?.calories_burned ?? 0) > 0;
+  const calorieSource = () => {
+    const s = stats();
+    if (!s || s.calories_burned <= 0) return "estimated";
+    return s.estimated_calories > s.calories_burned ? "logged + estimated" : "logged";
+  };
 
   return (
     <Show when={stats() && stats()!.workout_count > 0}>
       <div class="insights-strip">
         <StatCard
-          label="Est. calories"
+          label={hasLoggedCalories() ? "Calories burned" : "Est. calories"}
           value={String(stats()!.estimated_calories)}
-          hint={`${Math.round(stats()!.avg_calories_per_workout)} / workout`}
+          hint={`${Math.round(stats()!.avg_calories_per_workout)} / workout · ${
+            calorieSource()
+          }`}
           tone="positive"
         />
         <StatCard

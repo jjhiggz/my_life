@@ -1,4 +1,5 @@
 import {
+  Component,
   createEffect,
   createMemo,
   createResource,
@@ -18,11 +19,12 @@ import { Badge } from "~/components/ui/badge";
 import { cn } from "~/lib/utils";
 
 export type PaletteMode = "tabs" | "activities";
+export type PaletteIcon = Component<{ class?: string }>;
 
 export type PaletteTab = {
   href: string;
   label: string;
-  icon: string;
+  icon: PaletteIcon;
   end?: boolean;
 };
 
@@ -40,7 +42,7 @@ type PaletteItem = {
   id: string;
   label: string;
   href: string;
-  icon?: string;
+  icon?: PaletteIcon | string;
   meta?: string;
   detail?: string;
 };
@@ -84,6 +86,14 @@ function isDbActivity(id: string): boolean {
 
 async function loadActivities(): Promise<Activity[]> {
   return await invoke<Activity[]>("list_logged_activities");
+}
+
+function PaletteItemIcon(props: { icon?: PaletteIcon | string }) {
+  if (typeof props.icon === "function") {
+    const Icon = props.icon;
+    return <Icon class="size-4" />;
+  }
+  return <>{props.icon ?? "•"}</>;
 }
 
 export default function CommandPalette(props: {
@@ -220,7 +230,7 @@ export default function CommandPalette(props: {
                     onClick={() => selectItem(item)}
                   >
                     <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-xs text-muted-foreground">
-                      {item.icon ?? "•"}
+                      <PaletteItemIcon icon={item.icon} />
                     </span>
                     <span class="min-w-0 flex-1">
                       <span class="block truncate font-medium">{item.label}</span>

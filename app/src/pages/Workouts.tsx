@@ -45,6 +45,7 @@ type LoggedWorkout = {
   distance_m?: number;
   elevation_m?: number;
   avg_hr?: number;
+  calories_burned?: number;
   title?: string;
   notes?: string;
   exercises: LoggedExercise[];
@@ -466,6 +467,9 @@ function WorkoutCard(props: {
             </Show>
             <Show when={w.avg_hr}>
               <span class="ml-2">{w.avg_hr} bpm</span>
+            </Show>
+            <Show when={w.calories_burned}>
+              <span class="ml-2">{Math.round(w.calories_burned!)} kcal</span>
             </Show>
             <span class="ml-2">{fmtTime(w.created_at)}</span>
           </div>

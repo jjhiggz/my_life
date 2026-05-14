@@ -28,6 +28,7 @@ export default function LogCardioDialog(props: {
     undefined,
   );
   const [avgHr, setAvgHr] = createSignal<number | undefined>(undefined);
+  const [caloriesBurned, setCaloriesBurned] = createSignal<number | undefined>(undefined);
   const [notes, setNotes] = createSignal("");
   const [busy, setBusy] = createSignal(false);
 
@@ -38,6 +39,7 @@ export default function LogCardioDialog(props: {
     setDistanceMi(undefined);
     setElevationFt(undefined);
     setAvgHr(undefined);
+    setCaloriesBurned(undefined);
     setNotes("");
   };
 
@@ -52,6 +54,7 @@ export default function LogCardioDialog(props: {
         distanceM: distanceMi() ? distanceMi()! * 1609.344 : null,
         elevationM: elevationFt() ? elevationFt()! * 0.3048 : null,
         avgHr: avgHr() ?? null,
+        caloriesBurned: caloriesBurned() ?? null,
         energyBefore: null,
         energyAfter: null,
         location: null,
@@ -146,6 +149,18 @@ export default function LogCardioDialog(props: {
               value={avgHr() ?? ""}
               onInput={(e) =>
                 setAvgHr(
+                  e.currentTarget.value
+                    ? Number(e.currentTarget.value)
+                    : undefined,
+                )
+              }
+            />
+            <Input
+              type="number"
+              placeholder="Calories"
+              value={caloriesBurned() ?? ""}
+              onInput={(e) =>
+                setCaloriesBurned(
                   e.currentTarget.value
                     ? Number(e.currentTarget.value)
                     : undefined,
