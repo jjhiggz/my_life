@@ -1,5 +1,5 @@
 # Active Goals
-# These guide Claude's daily planning and task prioritization
+# These guide the agent's daily planning and task prioritization
 
 active:
   - id: triathlon
@@ -21,16 +21,15 @@ active:
     current_status: "Starting at 260lbs"
     approach: "Caloric deficit + strength training + cardio"
 
-  - id: dad-prep
-    goal: "Prepare for fatherhood"
-    target_date: 2024-10
+  - id: dad-routines
+    goal: "Sustain fatherhood routines"
     category: life
-    current_status: "Baby coming in October"
+    current_status: "Keep health, household, and personal routines realistic around family life"
     tasks:
-      - "Sign up for parenting class"
-      - "Read parenting books"
-      - "Set up nursery"
-      - "Build sustainable routines before baby arrives"
+      - "Protect sleep and recovery where possible"
+      - "Keep household systems simple"
+      - "Maintain sustainable workout and nutrition routines"
+      - "Plan ahead for family logistics"
 
   - id: guitar
     goal: "Maintain guitar skills"
@@ -51,9 +50,9 @@ active:
     notes: "Define this more when ready"
 
 priorities:
-  # Order matters - Claude will weight these when planning your day
+  # Order matters - the agent will weight these when planning your day
   - health        # Fitness, diet, sleep
-  - dad-prep      # Time-sensitive
+  - dad-routines  # Family-life sustainability
   - work-life-balance
   - gardening     # Seasonal, can't delay
   - guitar
@@ -63,4 +62,4 @@ constraints:
   - "Protect wrist (nearly healed but be careful)"
   - "No running until weight is lower"
   - "Morning workouts preferred"
-  - "Baby arrives October - build habits before then"
+  - "Keep routines sustainable around family life"

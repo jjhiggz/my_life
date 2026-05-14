@@ -745,10 +745,11 @@ pub fn complete_task(conn: &Connection, activity_id: Uuid) -> Result<()> {
 
 pub fn insert_body_metrics(conn: &Connection, metrics: &BodyMetrics) -> Result<()> {
     conn.execute(
-        "INSERT INTO body_metrics (id, recorded_at, weight_lbs, body_fat_pct, waist_in, chest_in, notes)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO body_metrics (id, activity_id, recorded_at, weight_lbs, body_fat_pct, waist_in, chest_in, notes)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             metrics.id.to_string(),
+            metrics.activity_id.map(|id| id.to_string()),
             metrics.recorded_at.to_rfc3339(),
             metrics.weight_lbs,
             metrics.body_fat_pct,

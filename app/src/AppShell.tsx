@@ -1,4 +1,4 @@
-import { ParentComponent, onCleanup, onMount } from "solid-js";
+import { ParentComponent, createSignal, onCleanup, onMount } from "solid-js";
 import { A, useLocation, useNavigate } from "@solidjs/router";
 import { cn } from "~/lib/utils";
 import {
@@ -18,6 +18,8 @@ import {
   sidebarMenuButtonVariants,
 } from "~/components/ui/sidebar";
 import TerminalView from "./Terminal";
+import ActionPalette from "./components/ActionPalette";
+import CommandPalette, { PaletteMode } from "./components/CommandPalette";
 
 type NavItem = { href: string; label: string; icon: string; end?: boolean };
 
@@ -25,8 +27,12 @@ const NAV: NavItem[] = [
   { href: "/", label: "Agent", icon: "›_", end: true },
   { href: "/plans", label: "Plans", icon: "◐" },
   { href: "/activities", label: "Activities", icon: "▦" },
+  { href: "/calendar", label: "Calendar", icon: "◇" },
   { href: "/food", label: "Food", icon: "◍" },
   { href: "/workouts", label: "Workouts", icon: "▲" },
+  { href: "/analytics", label: "Analytics", icon: "⌁" },
+  { href: "/journal", label: "Journal", icon: "◫" },
+  { href: "/settings", label: "Settings", icon: "⚙" },
 ];
 
 const ROUTES = NAV.map((n) => n.href);
@@ -34,6 +40,9 @@ const ROUTES = NAV.map((n) => n.href);
 const AppShell: ParentComponent = (props) => {
   const loc = useLocation();
   const navigate = useNavigate();
+  const [paletteMode, setPaletteMode] = createSignal<PaletteMode>("tabs");
+  const [paletteOpen, setPaletteOpen] = createSignal(false);
+  const [actionPaletteOpen, setActionPaletteOpen] = createSignal(false);
   const onAgent = () => loc.pathname === "/";
   const currentLabel = () =>
     NAV.find((n) => (n.end ? loc.pathname === n.href : loc.pathname.startsWith(n.href)))
@@ -45,6 +54,9 @@ const AppShell: ParentComponent = (props) => {
       if (e.code === "KeyR") {
         e.preventDefault();
         window.location.reload();
+      } else if (e.code === "KeyP") {
+        e.preventDefault();
+        setActionPaletteOpen(true);
       } else if (e.code === "BracketRight") {
         e.preventDefault();
         const idx = ROUTES.indexOf(loc.pathname);
@@ -53,6 +65,23 @@ const AppShell: ParentComponent = (props) => {
         e.preventDefault();
         const idx = ROUTES.indexOf(loc.pathname);
         navigate(ROUTES[(idx - 1 + ROUTES.length) % ROUTES.length]);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    onCleanup(() => window.removeEventListener("keydown", handler));
+  });
+
+  onMount(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.metaKey || e.shiftKey || e.altKey || e.ctrlKey) return;
+      if (e.code === "KeyP") {
+        e.preventDefault();
+        setPaletteMode("tabs");
+        setPaletteOpen(true);
+      } else if (e.code === "KeyK") {
+        e.preventDefault();
+        setPaletteMode("activities");
+        setPaletteOpen(true);
       }
     };
     window.addEventListener("keydown", handler);
@@ -116,8 +145,19 @@ const AppShell: ParentComponent = (props) => {
         >
           <TerminalView />
         </div>
-        {!onAgent() && <div class="flex-1 overflow-auto">{props.children}</div>}
+        {!onAgent() && <div class="min-w-0 flex-1 overflow-auto">{props.children}</div>}
       </SidebarInset>
+      <CommandPalette
+        mode={paletteMode()}
+        open={paletteOpen()}
+        tabs={NAV}
+        onOpenChange={setPaletteOpen}
+        onSelect={(href) => navigate(href)}
+      />
+      <ActionPalette
+        open={actionPaletteOpen()}
+        onOpenChange={setActionPaletteOpen}
+      />
     </SidebarProvider>
   );
 };

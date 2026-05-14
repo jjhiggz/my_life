@@ -12,6 +12,7 @@ import {
 import LogStrengthDialog from "~/components/LogStrengthDialog";
 import LogCardioDialog from "~/components/LogCardioDialog";
 import ExerciseHistoryDialog from "~/components/ExerciseHistoryDialog";
+import WorkoutStatsBar from "~/components/WorkoutStatsBar";
 
 type LoggedSet = {
   id: string;
@@ -312,6 +313,12 @@ export default function Workouts() {
           </Button>
         </div>
       </header>
+
+      <WorkoutStatsBar
+        view={view()}
+        date={viewDate()}
+        weekStart={startOfWeek(viewDate())}
+      />
 
       <Show when={view() === "day"}>
         <div class="grid gap-6 lg:grid-cols-[1fr_320px]">

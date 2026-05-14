@@ -1,6 +1,6 @@
 # Gardening Knowledge Base
 # Used for generating quizzes and tracking what you've learned
-# Claude will quiz you and update confidence levels
+# The agent will quiz you and update confidence levels
 
 zone_7_virginia:
   spring_tasks:
@@ -56,7 +56,7 @@ zone_7_virginia:
         when: "After last frost (May)"
 
 quiz_history:
-  # Claude will track questions asked and whether you got them right
+  # The agent will track questions asked and whether you got them right
   # Format:
   # - date: 2024-03-15
   #   question: "When should you start tomato seeds indoors in Zone 7?"

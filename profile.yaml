@@ -1,14 +1,14 @@
-# Personal Profile - The context Claude needs to help you
-# Last updated: 2024-03-15
+# Personal Profile - The context the agent needs to help you
+# Last updated: 2026-05-13
 
 personal:
   location: Virginia
   usda_zone: "7a"  # Adjust if you know your specific zone
 
   life_events:
-    - event: "Baby arriving"
+    - event: "Parenting / family routines"
       date: 2024-10
-      notes: "First child - need to prep and build sustainable habits before"
+      notes: "First child arrived around this time - keep habits sustainable around family life"
 
 work:
   type: full-time-remote

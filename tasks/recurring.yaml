@@ -1,5 +1,5 @@
 # Recurring Tasks
-# These happen on a schedule - Claude will include them in daily plans
+# These happen on a schedule - the agent will include them in daily plans
 
 daily:
   - task: "Morning workout"
@@ -10,7 +10,7 @@ daily:
 
   - task: "Gardening quiz (5 questions)"
     days: [mon, tue, wed, thu, fri, sat, sun]
-    notes: "Claude generates questions based on season and what you're growing"
+    notes: "The agent generates questions based on season and what you're growing"
 
 weekly:
   - task: "Play guitar"

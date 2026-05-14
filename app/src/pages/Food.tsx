@@ -244,10 +244,10 @@ export default function Food() {
     },
   );
   const [recent, { refetch: refetchRecent }] = createResource(() =>
-    invoke<FoodRow[]>("list_foods", { order: "recent", limit: 8 }),
+    invoke<FoodRow[]>("list_foods", { order: "recent", limit: 3 }),
   );
   const [frequent, { refetch: refetchFrequent }] = createResource(() =>
-    invoke<FoodRow[]>("list_foods", { order: "frequent", limit: 8 }),
+    invoke<FoodRow[]>("list_foods", { order: "frequent", limit: 3 }),
   );
   const [templates, { refetch: refetchTemplates }] = createResource(() =>
     invoke<MealTemplate[]>("list_meal_templates"),
@@ -421,7 +421,7 @@ export default function Food() {
     }
   };
 
-  const handleDescribeToClaude = async () => {
+  const handleDescribeToAgent = async () => {
     try {
       await invoke("pty_write", { data: "I just ate " });
     } catch (e) {
@@ -823,7 +823,7 @@ export default function Food() {
                   <h3>Search results</h3>
                   <Show when={searchResults().length === 0}>
                     <div class="muted small">
-                      No matches. Use "Describe to Claude" for new foods.
+                      No matches. Use "Describe to agent" for new foods.
                     </div>
                   </Show>
                   <For each={searchResults()}>
@@ -900,17 +900,17 @@ export default function Food() {
                 </div>
               </Show>
 
-              <div class="qa-section qa-claude">
+              <div class="qa-section qa-agent">
                 <Button
                   variant="secondary"
                   class="w-full"
-                  onClick={handleDescribeToClaude}
+                  onClick={handleDescribeToAgent}
                 >
-                  Describe to Claude
+                  Describe to agent
                 </Button>
                 <div class="muted small mt-2">
                   Switches to the Agent tab with "I just ate " queued —
-                  finish the sentence and Claude logs it.
+                  finish the sentence and Codex logs it.
                 </div>
               </div>
             </aside>

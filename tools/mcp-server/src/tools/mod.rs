@@ -199,6 +199,7 @@ impl HiggzLife {
     pub fn log_weight(&self, params: LogBodyMetricsParams) -> Result<Uuid> {
         let metrics = BodyMetrics {
             id: Uuid::new_v4(),
+            activity_id: None,
             recorded_at: Utc::now(),
             weight_lbs: params.weight_lbs,
             body_fat_pct: params.body_fat_pct,

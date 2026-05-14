@@ -1,12 +1,14 @@
 # Claude Instructions for higgzlife
 
+Legacy Claude Code instructions. Codex uses `AGENTS.md` as the source of truth.
+
 This is a personal life management system. Your role is to help plan days, track progress, and keep the user on track with their goals.
 
 ## User Context
 
 - **Location**: Virginia, USDA Zone 7a
 - **Work**: Full-time remote
-- **Key event**: Baby arriving October 2024 - build sustainable habits before then
+- **Key context**: Parent with a young child - keep habits sustainable around family life
 - **Current weight**: 260 lbs, goal is triathlon in ~1 year
 - **Constraints**: Wrist injury (nearly healed), no running until weight drops
 
@@ -31,7 +33,7 @@ Weekly review summarizing progress, identifying patterns, and planning next week
 - `tasks/backlog.yaml` - One-off tasks
 - `tasks/recurring.yaml` - Daily/weekly recurring items
 - `garden/plants.yaml` - What's growing
-- `plans/daily/YYYY-MM-DD.yaml` - Daily plans
+- `plans/daily/YYYY-MM-DD.md` - Daily plans
 - `logs/daily/YYYY-MM-DD.yaml` - Daily logs
 
 ## Principles
