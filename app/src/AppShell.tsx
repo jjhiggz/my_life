@@ -169,10 +169,10 @@ const AppShell: ParentComponent = (props) => {
         <SidebarHeader>
           <div class="flex items-center gap-2 px-2 py-1">
             <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground text-xs font-bold">
-              h
+              m
             </div>
             <span class="text-sm font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
-              higgzlife
+              mylife
             </span>
           </div>
         </SidebarHeader>

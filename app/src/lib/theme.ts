@@ -12,6 +12,7 @@ export type ThemePreset = {
 const THEME_ID_KEY = "higgzlife:theme:id";
 const THEME_MODE_KEY = "higgzlife:theme:mode";
 const THEME_CUSTOM_KEY = "higgzlife:theme:custom";
+const LEGACY_DEFAULT_THEME_ID = "higgzlife";
 
 const BASE_LIGHT: ThemeVars = {
   background: "0 0% 100%",
@@ -87,8 +88,8 @@ const BASE_DARK: ThemeVars = {
 
 export const THEME_PRESETS: ThemePreset[] = [
   {
-    id: "higgzlife",
-    name: "HiggzLife",
+    id: "mylife",
+    name: "mylife",
     description: "The default interface, with light and dark modes.",
     vars: { light: BASE_LIGHT, dark: BASE_DARK },
   },
@@ -614,7 +615,8 @@ export function applyAndSaveTheme(
 }
 
 export function loadSavedThemeId(): string {
-  return localStorage.getItem(THEME_ID_KEY) ?? THEME_PRESETS[0].id;
+  const saved = localStorage.getItem(THEME_ID_KEY);
+  return saved === LEGACY_DEFAULT_THEME_ID ? THEME_PRESETS[0].id : saved ?? THEME_PRESETS[0].id;
 }
 
 export function loadSavedThemeMode(): ThemeMode {

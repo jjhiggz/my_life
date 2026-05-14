@@ -208,7 +208,7 @@ export default function ActionPalette(props: {
                     <span class="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
                       {active().icon}
                     </span>
-                    HiggzLife Agent
+                    mylife Agent
                   </DialogTitle>
                   <DialogDescription class="mt-1 text-xs">
                     Drafts one app action and asks for approval before anything changes.

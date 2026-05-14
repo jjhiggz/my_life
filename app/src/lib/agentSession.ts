@@ -53,7 +53,7 @@ export function initializeAgentSession() {
       {
         id: newId(),
         role: "agent",
-        text: "HiggzLife Agent is ready. I will draft app actions for approval before changing anything.",
+        text: "mylife Agent is ready. I will draft app actions for approval before changing anything.",
         agentId: selectedAgentId(),
       },
     ]);
@@ -76,7 +76,7 @@ export function startAgentRuntime() {
       id: newId(),
       role: "status",
       state: "success",
-      text: "The HiggzLife action agent is already running locally.",
+      text: "The mylife action agent is already running locally.",
       agentId: selectedAgentId(),
     },
   ]);

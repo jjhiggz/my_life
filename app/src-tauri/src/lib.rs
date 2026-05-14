@@ -309,8 +309,8 @@ async fn draft_agent_action_with_llm(
     let agent_context = input
         .instruction
         .as_deref()
-        .unwrap_or("Map the request to one HiggzLife app action.");
-    let system = r#"You convert a HiggzLife user request into exactly one safe typed action.
+        .unwrap_or("Map the request to one mylife app action.");
+    let system = r#"You convert a mylife user request into exactly one safe typed action.
 Return JSON only. Do not include markdown.
 Supported kinds:
 - create_calendar_event: title, startsAt (YYYY-MM-DD or ISO datetime), optional endsAt, allDay, location, recurrenceRule (daily|weekly|monthly|yearly), recurrenceUntil, notes.
