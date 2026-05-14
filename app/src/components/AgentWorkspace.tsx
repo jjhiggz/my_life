@@ -77,10 +77,10 @@ export default function AgentWorkspace() {
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="text-sm text-muted-foreground">Agent workspace</div>
-            <h1 class="mt-1 text-2xl font-semibold tracking-tight">HiggzLife Agent</h1>
+            <h1 class="mt-1 text-2xl font-semibold tracking-tight">Agents</h1>
             <p class="mt-1 max-w-2xl text-sm text-muted-foreground">
-              Draft one safe app action at a time, approve it, then let the app tool run.
-              This is the API-style flow we can later back with GPT-5 nano.
+              Pick a focused agent, start a conversation from here or Cmd+Shift+P,
+              approve the proposed action, then let the app tool run.
             </p>
           </div>
           <div class="flex items-center gap-2">

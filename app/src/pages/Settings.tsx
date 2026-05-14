@@ -1,4 +1,4 @@
-import { createSignal, onMount, Show } from "solid-js";
+import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { Button } from "~/components/ui/button";
 import {
   Card,
@@ -18,10 +18,15 @@ import {
 import {
   THEME_PRESETS,
   applyAndSaveTheme,
+  loadCustomTheme,
   loadSavedThemeId,
   loadSavedThemeMode,
+  parseThemeBundle,
   saveThemeMode,
+  themeCss,
+  themeVarsForMode,
   type ThemeMode,
+  type ThemeVars,
 } from "~/lib/theme";
 import {
   clearAgentApiToken,
@@ -36,9 +41,19 @@ function savedPresetId(): string {
     : THEME_PRESETS[0].id;
 }
 
+const REQUIRED_THEME_KEYS = ["background", "foreground", "primary", "border"];
+
+function swatchStyle(vars: ThemeVars, key: string): Record<string, string> {
+  return vars[key] ? { background: `hsl(${vars[key]})` } : {};
+}
+
 export default function Settings() {
+  const custom = loadCustomTheme();
   const [selectedTheme, setSelectedTheme] = createSignal(savedPresetId());
   const [mode, setMode] = createSignal<ThemeMode>(loadSavedThemeMode());
+  const [customCss, setCustomCss] = createSignal(
+    custom ? themeCss(custom) : themeCss(THEME_PRESETS[0].vars),
+  );
   const [message, setMessage] = createSignal<string | null>(null);
   const [agentProvider, setAgentProvider] = createSignal("openai");
   const [agentModel, setAgentModel] = createSignal("gpt-5-mini");
@@ -46,6 +61,14 @@ export default function Settings() {
   const [agentToken, setAgentToken] = createSignal("");
   const [agentTokenConfigured, setAgentTokenConfigured] = createSignal(false);
   const [agentMessage, setAgentMessage] = createSignal<string | null>(null);
+
+  const parsedCustom = createMemo(() => parseThemeBundle(customCss()));
+  const parsedCustomVars = createMemo(() =>
+    themeVarsForMode(parsedCustom(), mode()),
+  );
+  const missingCustomKeys = createMemo(() =>
+    REQUIRED_THEME_KEYS.filter((key) => !parsedCustomVars()[key]),
+  );
 
   onMount(async () => {
     try {
@@ -102,11 +125,26 @@ export default function Settings() {
   const applyMode = (nextMode: ThemeMode) => {
     setMode(nextMode);
     saveThemeMode(nextMode);
+    if (selectedTheme() === "custom") {
+      applyAndSaveTheme("custom", parsedCustom(), nextMode);
+      setMessage("Saved");
+      return;
+    }
     const preset =
       THEME_PRESETS.find((theme) => theme.id === selectedTheme()) ??
       THEME_PRESETS[0];
     applyAndSaveTheme(preset.id, preset.vars, nextMode);
     setMessage("Saved");
+  };
+
+  const applyCustomTheme = () => {
+    if (missingCustomKeys().length > 0) {
+      setMessage(`Missing required tokens: ${missingCustomKeys().join(", ")}`);
+      return;
+    }
+    applyAndSaveTheme("custom", parsedCustom(), mode());
+    setSelectedTheme("custom");
+    setMessage("Custom theme applied");
   };
 
   return (
@@ -176,6 +214,46 @@ export default function Settings() {
               </Show>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card class="mt-6 max-w-2xl">
+        <CardHeader>
+          <CardTitle>Import TweakCN Theme</CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <textarea
+            class="min-h-72 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            value={customCss()}
+            spellcheck={false}
+            onInput={(event) => setCustomCss(event.currentTarget.value)}
+          />
+
+          <div class="flex flex-wrap items-center gap-3">
+            <Button onClick={applyCustomTheme}>Apply Custom Theme</Button>
+            <Show when={selectedTheme() === "custom"}>
+              <span class="text-sm text-muted-foreground">Custom theme active</span>
+            </Show>
+            <Show when={message()}>
+              <span class="text-sm text-muted-foreground">{message()}</span>
+            </Show>
+          </div>
+
+          <Show when={Object.keys(parsedCustom()).length > 0}>
+            <div class="flex flex-wrap gap-2">
+              <For each={["background", "foreground", "primary", "accent", "border", "ring"]}>
+                {(key) => (
+                  <div class="flex items-center gap-2 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">
+                    <span
+                      class="h-3 w-3 rounded-full border border-border"
+                      style={swatchStyle(parsedCustomVars(), key)}
+                    />
+                    {key}
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
         </CardContent>
       </Card>
 

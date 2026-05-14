@@ -25,7 +25,7 @@ import TerminalView from "./Terminal";
 type NavItem = { href: string; label: string; icon: string; end?: boolean };
 
 const NAV: NavItem[] = [
-  { href: "/", label: "Agent", icon: "›_", end: true },
+  { href: "/", label: "Agents", icon: "›_", end: true },
   { href: "/plans", label: "Plans", icon: "◐" },
   { href: "/activities", label: "Activities", icon: "▦" },
   { href: "/calendar", label: "Calendar", icon: "◇" },
